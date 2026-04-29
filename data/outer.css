@@ -1,0 +1,211 @@
+/* TODO **************************************************************************** */
+/* ! 탭 버튼 css */
+/* TODO **************************************************************************** */
+
+/* * 공통 탭버튼 css */
+.tab-btn-area .tab-btn {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+.tab-btn-area .tab-btn img {
+  width: 100%;
+
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+.tab-btn img:last-of-type {
+  display: none;
+}
+.tab-btn.on img:first-of-type {
+  display: none;
+}
+.tab-btn.on img:last-of-type {
+  display: block;
+}
+
+/* * 기본 탭버튼 css */
+.tab-btn-area.basic-tab {
+  display: flex;
+  width: 100%;
+}
+.tab-btn-area.basic-tab .tab-btn {
+  /* TODO 2개 : 50%, 3개 : 33.3333%, 4개 : 25%, 5개 : 20% */
+  width: 50%;
+  cursor: pointer;
+}
+
+/* * 스와이프 탭버튼 css */
+.tab-btn-area.swiper-tab {
+  position: relative;
+}
+.tab-btn-area.swiper-tab .tab-btn {
+  width: 33.3333%;
+  cursor: pointer;
+}
+/* TODO **************************************************************************** */
+/* ! 모달 wrap css */
+/* TODO **************************************************************************** */
+.if-modal-wrap img {
+  display: block;
+  width: 100%;
+}
+.if-modal-wrap {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  opacity: 0;
+  transition: all 0.3s;
+}
+.if-modal-inner {
+  display: flex;
+  flex-direction: column;
+  width: 90%;
+  min-height: 50%;
+  max-height: 90%;
+  border-radius: 1vw;
+  overflow: hidden;
+}
+.if-modal-inner.full {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+.if-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  background-color: white;
+  padding: 2vw;
+}
+.if-modal__close {
+  width: 6.6666vw;
+  height: 6.6666vw;
+  cursor: pointer;
+}
+.if-modal__close svg {
+  width: 100%;
+  height: 100%;
+}
+.if-modal__close svg rect {
+  fill: block;
+}
+.if-modal__header.transparent {
+  background-color: transparent;
+  padding: 2vw 0;
+}
+.if-modal__header.transparent .if-modal__close svg rect {
+  fill: white;
+}
+.if-modal__container {
+  flex-grow: 1;
+  background-color: white;
+  overflow-y: auto;
+}
+.if-modal__header.transparent ~ .if-modal__container {
+  border-top-left-radius: 1vw;
+  border-top-right-radius: 1vw;
+  overflow-x: hidden;
+}
+.if-modal-img-box {
+  position: relative;
+}
+
+/* TODO **************************************************************************** */
+/* ! 모달 스와이퍼 커스텀 */
+/* TODO **************************************************************************** */
+.swiper-mask .swiper-button-prev,
+.swiper-mask .swiper-button-next {
+  width: 8vw;
+  height: 8vw;
+  top: 50%;
+
+  background-size: cover;
+  opacity: 1;
+}
+.swiper-mask .swiper-button-prev {
+  /* background-image: url(../images/slide_prev.png); */
+  left: 5vw;
+}
+.swiper-mask .swiper-button-next {
+  /* background-image: url(../images/slide_next.png); */
+  right: 5vw;
+}
+.swiper-mask .swiper-button-prev:after,
+.swiper-mask .swiper-button-next:after {
+  display: none;
+}
+
+.swiper-mask .swiper-pagination {
+  justify-content: center;
+  margin-top: 3vw;
+
+  display: flex;
+  align-items: center;
+  position: static;
+}
+.swiper-pagination-bullet {
+  width: 2vw;
+  height: 2vw;
+  background-color: #d1d1d1;
+  margin: 0 1vw !important;
+
+  display: block;
+  opacity: 1;
+}
+.swiper-pagination-bullet-active {
+  background-color: #137cf5;
+}
+
+.swiper-mask .swiper-scrollbar {
+  width: 90%;
+  height: 0.8vw;
+  background-color: darkgrey;
+  border-radius: 0;
+
+  margin: 3vw auto 0;
+  position: static;
+}
+.swiper-mask .swiper-scrollbar-drag {
+  background-color: darkblue;
+  border-radius: 0;
+}
+
+/* TODO **************************************************************************** */
+/* ! 모달 스와이퍼 pc css 설정
+/* TODO **************************************************************************** */
+.swiper-mask.pc .swiper-button-prev,
+.swiper-mask.pc .swiper-button-next {
+  width: 50px;
+  height: 50px;
+}
+.swiper-mask.pc .swiper-button-prev {
+  left: 40px;
+}
+.swiper-mask.pc .swiper-button-next {
+  right: 40px;
+}
+
+.swiper-mask.pc .swiper-pagination {
+  margin-top: 40px;
+}
+.swiper-mask.pc .swiper-pagination-bullet {
+  width: 14px;
+  height: 14px;
+  margin: 0 10px !important;
+}
+
+.swiper-mask.pc .swiper-scrollbar {
+  height: 4px;
+  margin: 40px auto 0;
+}

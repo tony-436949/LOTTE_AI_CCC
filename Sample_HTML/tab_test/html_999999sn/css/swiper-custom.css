@@ -1,0 +1,66 @@
+/* swiper-custom [S] */
+.swiper-mask .swiper-button-prev,
+.swiper-mask .swiper-button-next {
+  /* TODO 버튼 사이즈, 위치 설정 */
+  width: 6.4vw;
+  height: 6.4vw;
+  top: 50%;
+
+  background-size: cover;
+  opacity: 1;
+}
+.swiper-mask .swiper-button-prev {
+  /* TODO 버튼 이미지, 위치 설정 */
+  background-image: url(../images/slide_prev.png);
+  left: 5vw;
+}
+.swiper-mask .swiper-button-next {
+  /* TODO 버튼 이미지, 위치 설정 */
+  background-image: url(../images/slide_next.png);
+  right: 5vw;
+}
+.swiper-mask .swiper-button-prev:after,
+.swiper-mask .swiper-button-next:after {
+  display: none;
+}
+
+.swiper-mask .swiper-pagination {
+  /* TODO pagination 설정 */
+  justify-content: center;
+  margin-top: 3vw;
+
+  display: flex;
+  align-items: center;
+  position: static;
+}
+.swiper-pagination-bullet {
+  /* TODO bullet 사이즈, 컬러, 간격 설정 */
+  width: 1.6vw;
+  height: 1.6vw;
+  background-color: #d1d1d1;
+  margin: 0 1vw !important;
+
+  display: block;
+  opacity: 1;
+}
+.swiper-pagination-bullet-active {
+  /* TODO bullet-active 컬러 설정 */
+  background-color: #137cf5;
+}
+
+.swiper-mask .swiper-scrollbar {
+  /* TODO scrollbar 설정 */
+  width: 90%;
+  height: 0.8vw;
+  background-color: darkgrey;
+  border-radius: 0;
+
+  margin: 3vw auto 0;
+  position: static;
+}
+.swiper-mask .swiper-scrollbar-drag {
+  /* TODO scrollbar-drag 설정 */
+  background-color: darkblue;
+  border-radius: 0;
+}
+/* swiper-custom [E] */

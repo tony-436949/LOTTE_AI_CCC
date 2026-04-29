@@ -1,0 +1,45 @@
+/* * 공통 탭버튼 css */
+.tab-btn-area .tab-btn {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+.tab-btn-area .tab-btn img {
+  width: 100%;
+  height: 100%;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+.tab-btn img:last-of-type {
+  display: none;
+}
+.tab-btn.on img:first-of-type {
+  display: none;
+}
+.tab-btn.on img:last-of-type {
+  display: block;
+}
+
+/* * 기본 탭버튼 css */
+.tab-btn-area.basic-tab {
+  display: flex;
+  width: 100%;
+}
+.tab-btn-area.basic-tab .tab-btn {
+  /* TODO 2개 : 50%, 3개 : 33.3333%, 4개 : 25%, 5개 : 20% */
+  width: 50%;
+  cursor: pointer;
+}
+
+/* * 스와이프 탭버튼 css */
+.tab-btn-area.swiper-tab {
+  /* background: url(../images/tab/tab_bg.jpg) no-repeat center / cover; */
+  position: relative;
+}
+.tab-btn-area.swiper-tab .tab-btn {
+  width: 33.3333%;
+  cursor: pointer;
+}

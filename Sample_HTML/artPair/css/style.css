@@ -1,0 +1,45 @@
+@charset "utf-8";
+@import "reset.css";
+@import "tab-menu.css";
+@import "swiper-custom.css";
+@import "toggle-box.css";
+
+/* img-box */
+.img-box {
+  position: relative;
+}
+
+.basic .swiper-mask .swiper {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  padding: 0 6.6667vw;
+  top: 49.7089%;
+}
+.copy-btn {
+  position: absolute;
+  height: 1.1%;
+  /* background-color: rgba(0, 0, 0, 0.5); */
+
+  &.copy-btn1 {
+    top: 37.4%;
+    left: 6%;
+    width: 31.6%;
+  }
+  &.copy-btn2 {
+    top: 37.4%;
+    left: 39%;
+    width: 29.6%;
+  }
+  &.copy-btn3 {
+    top: 37.4%;
+    left: 69%;
+    width: 16.6%;
+  }
+  &.copy-btn4 {
+    top: 73.2%;
+    left: 52%;
+    width: 33%;
+  }
+}

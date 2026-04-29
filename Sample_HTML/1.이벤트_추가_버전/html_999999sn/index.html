@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no"
+    />
+    <meta name="format-detection" content="telephone=no" />
+    <title>이벤트</title>
+
+    <link rel="stylesheet" href="./css/swiper.min.css" />
+    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="stylesheet" href="./css/audio.css" />
+
+    <script src="./js/jquery-3.3.1.min.js"></script>
+    <script src="./js/gsap.min.js"></script>
+    <script src="./js/swiper.min.js"></script>
+    <script src="./js/ga4Event.js"></script>
+    <script src="./js/link.js"></script>
+
+    <script type="text/javascript">
+      // <!-- TODO 링크 데이터 설정 [S] -->
+      const contentName =
+        "[전사] 콘란 지노리 우수고객 쇼핑뉴스 제작_이벤트_추가버전";
+      const contentCode = "SNM00000000000528324";
+
+      const linkObj = [
+        {
+          type: "event",
+          url: "ENT00000000000012090",
+          value: "이벤트 응모 바로가기",
+        },
+      ];
+      // <!-- TODO 링크 데이터 설정 [E] -->
+    </script>
+  </head>
+
+  <body>
+    <!-- ! eventBox [S] -->
+    <div class="eventBox">
+      <img src="./images/top_img.jpg" alt="" />
+
+      <!-- ! tab-btn-area [S] -->
+      <div class="tab-btn-area basic-tab">
+        <div class="tab-btn on" data-tab-name="[TAB] Event">
+          <img src="./images/tab/tab1_off.jpg" alt="" />
+          <img src="./images/tab/tab1_on.jpg" alt="" />
+        </div>
+        <div class="tab-btn" data-tab-name="[TAB] Pop-Up">
+          <img src="./images/tab/tab2_off.jpg" alt="" />
+          <img src="./images/tab/tab2_on.jpg" alt="" />
+        </div>
+      </div>
+      <!-- tab-btn-area [E] -->
+
+      <!-- ! tab-area [S] -->
+      <div class="tab-area img-box">
+        <img
+          src="./images/tab1/img_01.jpg"
+          alt="지노리 아티장 페인팅 클래스 초청 이벤트"
+        />
+        <img src="./images/tab1/img_02.jpg" alt="" class="kioskDel" />
+        <a href="#" id="link0" data-order="0" class="link-btn kioskDel">
+          <img src="./images/tab1/img_03.jpg" alt="" />
+        </a>
+        <img src="./images/tab1/img_04.jpg" alt="" />
+      </div>
+      <!-- tab-area [E] -->
+
+      <!-- ! tab-area [S] -->
+      <div class="tab-area img-box">
+        <img src="./images/tab2/img_01.jpg" alt="Ginori 1735 아카이브 Pop-Up" />
+
+        <!-- .swiper 부모 .swiper-mask 필수 -->
+        <div class="swiper-mask swiper-basic swiper1">
+          <div class="swiper">
+            <div class="swiper-wrapper">
+              <div class="swiper-slide">
+                <img src="./images/tab2/slide/1/1.png" alt="" />
+              </div>
+              <div class="swiper-slide">
+                <img src="./images/tab2/slide/1/2.png" alt="" />
+              </div>
+              <div class="swiper-slide">
+                <img src="./images/tab2/slide/1/3.png" alt="" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- tab-area [E] -->
+    </div>
+    <!-- eventBox [E] -->
+
+    <script src="./js/common.js"></script>
+    <script src="./js/tab.js"></script>
+    <script type="text/javascript">
+      // swiper 반복문 [S]
+      let swiperObj = {};
+      for (let index = 1; index <= $(".swiper-mask").length; index++) {
+        const swiperConfig = {
+          observer: true,
+          observeParents: true,
+          slidesPerView: "auto",
+          spaceBetween: parseInt($(window).width() * 0.06),
+        };
+
+        swiperObj[`swiper${index}`] = new Swiper(
+          `.swiper${index} .swiper`,
+          swiperConfig,
+        );
+      }
+      // swiper 반복문 [E]
+    </script>
+  </body>
+</html>

@@ -1,0 +1,29 @@
+@charset "utf-8";
+@import "reset.css";
+@import "tab-menu.css";
+@import "swiper-custom.css";
+@import "toggle-box.css";
+
+/* img-box */
+.img-box {
+  position: relative;
+}
+
+/* swiper */
+.swiper-mask {
+  position: absolute;
+  top: 0;
+  width: 100%;
+}
+
+/* tab1 */
+.swiper-mask.swiper1 {
+  top: 208.26vw;
+}
+
+.swiper-mask .swiper {
+  padding: 0 6.6666vw;
+}
+.swiper-mask.swiper1 .swiper .swiper-slide {
+  width: 74.66vw;
+}

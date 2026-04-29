@@ -1,0 +1,2290 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>웹 콘텐츠 에디터</title>
+  <!-- Google Fonts: Noto Sans KR -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- JSZip 3.10.1 CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    /* ═══════════════════════════════════════════════════════
+       CSS 변수 및 전역 스타일
+       설명: 에디터 전체에서 사용하는 색상, 배경, 글꼴 등의 기본 설정.
+             여기서 정의한 색상 변수를 변경하면 에디터 전체 테마가 바뀝니다.
+       ═══════════════════════════════════════════════════════ */
+    :root {
+      --acc: #e84393;   /* 링크 영역 색상 (분홍색) — 링크 블록 호버/테두리에 사용 */
+      --acc2: #a855f7;  /* 이미지 영역 색상 (보라색) — 이미지 블록 호버/테두리에 사용 */
+      --grn: #00b894;   /* 슬라이드 영역 색상 (녹색) — 슬라이드 블록 호버/테두리에 사용 */
+      --yel: #fdcb6e;   /* 텍스트·탭 영역 색상 (노란색) — 텍스트/탭 호버에 사용 */
+      --bg: #1a1a2e;    /* 전체 배경색 (진한 남색) */
+      --dk: #16213e;    /* 상단 바, 입력 필드 배경 (어두운 남색) */
+      --dk2: #0f3460;   /* 활성 버튼 배경 (중간 남색) */
+      --sur: #1e2a4a;   /* 패널/카드 배경색 (표면색) */
+      --bdr: #2d3a5c;   /* 테두리/구분선 색상 */
+      --txt: #e8e8e8;   /* 기본 텍스트 색상 (밝은 회색) */
+      --txt2: #a0a0b8;  /* 보조 텍스트 색상 (중간 회색) */
+      --txt3: #6c6c80;  /* 비활성 텍스트 색상 (어두운 회색) */
+      --shd: rgba(0,0,0,0.3);  /* 기본 그림자 */
+      --shd2: rgba(0,0,0,0.5); /* 강한 그림자 */
+    }
+    /* --- 전역 리셋: 모든 요소의 기본 여백/패딩 제거, 박스 크기 계산 방식 통일 --- */
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html { font-size:14px; -webkit-font-smoothing:antialiased; }
+    body { font-family:'Noto Sans KR',-apple-system,BlinkMacSystemFont,sans-serif; background:var(--bg); color:var(--txt); overflow-x:hidden; min-height:100vh; }
+    input[type="file"] { display:none; } /* 파일 입력 요소는 숨기고, 버튼 클릭으로 대신 열기 */
+    button { font-family:inherit; cursor:pointer; border:none; outline:none; background:none; color:inherit; font-size:inherit; }
+    button:disabled { opacity:0.4; cursor:not-allowed; } /* 비활성 버튼은 흐리게 표시 */
+    a { color:inherit; text-decoration:none; }
+    img { max-width:100%; display:block; }
+    /* --- 스크롤바 커스텀 디자인 (크롬/엣지 브라우저용) --- */
+    ::-webkit-scrollbar { width:6px; height:6px; }
+    ::-webkit-scrollbar-track { background:var(--dk); }
+    ::-webkit-scrollbar-thumb { background:var(--bdr); border-radius:3px; }
+    ::-webkit-scrollbar-thumb:hover { background:var(--txt3); }
+
+    /* ═══════════════════════════════════════════════════════
+       상단 바 (Topbar)
+       설명: 화면 최상단에 고정되는 메뉴 바. 브랜드 로고, 파일명,
+             범례(색상 안내), 디바이스 전환(MO/PC), 변경됨 배지,
+             콘텐츠 정보/초기화/ZIP 저장 버튼이 포함됩니다.
+       ═══════════════════════════════════════════════════════ */
+    .topbar { position:fixed; top:0; left:0; right:0; height:54px; background:var(--dk); display:flex; align-items:center; padding:0 16px; z-index:1000; border-bottom:1px solid var(--bdr); gap:10px; }
+    /* --- 브랜드 로고: 왼쪽에 표시되는 "콘텐츠 에디터" 텍스트와 애니메이션 점 --- */
+    .brand { display:flex; align-items:center; gap:8px; font-weight:700; font-size:15px; color:var(--txt); white-space:nowrap; flex-shrink:0; }
+    .brand-dots { display:flex; gap:3px; }
+    .brand-dots span { width:7px; height:7px; border-radius:50%; animation:dotPulse 1.8s ease-in-out infinite; }
+    .brand-dots span:nth-child(1) { background:var(--acc); animation-delay:0s; }   /* 분홍 점 */
+    .brand-dots span:nth-child(2) { background:var(--acc2); animation-delay:0.3s; } /* 보라 점 */
+    .brand-dots span:nth-child(3) { background:var(--grn); animation-delay:0.6s; }  /* 녹색 점 */
+    .brand-dots span:nth-child(4) { background:var(--yel); animation-delay:0.9s; }  /* 노란 점 */
+    @keyframes dotPulse { 0%,100%{transform:scale(1);opacity:0.7;} 50%{transform:scale(1.4);opacity:1;} }
+    /* --- 파일명 힌트: 업로드한 ZIP 파일명을 표시하는 영역 --- */
+    .topbar-hint { font-size:12px; color:var(--txt3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px; flex-shrink:1; }
+    .topbar-sep { width:1px; height:24px; background:var(--bdr); flex-shrink:0; } /* 세로 구분선 */
+    /* --- 범례: 각 편집 영역의 색상 의미를 안내하는 작은 아이콘들 --- */
+    .legend { display:flex; align-items:center; gap:10px; font-size:11px; color:var(--txt2); flex-shrink:0; }
+    .legend-item { display:flex; align-items:center; gap:4px; white-space:nowrap; }
+    .legend-dot { width:8px; height:8px; border-radius:2px; }
+    .legend-dot.img { background:var(--acc2); }
+    .legend-dot.link { background:var(--acc); }
+    .legend-dot.txt { background:var(--yel); }
+    .legend-dot.slide { background:var(--grn); }
+    .legend-dot.ext { background:#74b9ff; }
+    .topbar-spacer { flex:1; } /* 왼쪽 요소와 오른쪽 버튼 사이 빈 공간 */
+    /* --- 디바이스 전환 토글: MO(모바일 390px) / PC(900px) 미리보기 너비 전환 --- */
+    .dev-tgl { display:flex; gap:2px; background:var(--sur); border-radius:6px; padding:2px; flex-shrink:0; }
+    .dev-tgl button { padding:4px 12px; border-radius:4px; font-size:12px; font-weight:600; color:var(--txt2); transition:all 0.2s; }
+    .dev-tgl button.active { background:var(--dk2); color:var(--txt); }
+    /* --- 변경됨 배지: 편집이 발생하면 표시되는 분홍색 알림 --- */
+    .bdg-chg { display:none; padding:2px 8px; background:var(--acc); color:#fff; font-size:11px; font-weight:600; border-radius:10px; white-space:nowrap; flex-shrink:0; }
+    .bdg-chg.show { display:inline-block; } /* show 클래스가 추가되면 보임 */
+    /* --- 상단 바 버튼들: 콘텐츠 정보, 초기화, ZIP 저장 --- */
+    .topbar-btn { padding:6px 14px; border-radius:6px; font-size:12px; font-weight:500; transition:all 0.2s; white-space:nowrap; flex-shrink:0; }
+    .topbar-btn.info { background:var(--sur); color:var(--txt2); border:1px solid var(--bdr); }
+    .topbar-btn.info:hover:not(:disabled) { background:var(--dk2); color:var(--txt); }
+    .topbar-btn.reset { background:var(--sur); color:var(--txt2); border:1px solid var(--bdr); }
+    .topbar-btn.reset:hover:not(:disabled) { background:#c0392b; color:#fff; border-color:#c0392b; }
+    .topbar-btn.export { background:var(--acc); color:#fff; }
+    .topbar-btn.export:hover:not(:disabled) { background:#d63384; }
+
+    /* ═══════════════════════════════════════════════════════
+       업로드 화면
+       설명: 에디터를 처음 열면 보이는 화면. ZIP 파일을 드래그하거나
+             클릭하여 업로드할 수 있는 영역과 ZIP 구조 안내가 표시됩니다.
+             ZIP 파일이 로드되면 이 화면은 숨겨지고 에디터 화면이 나타납니다.
+       ═══════════════════════════════════════════════════════ */
+    #uploadScreen { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:var(--bg); z-index:500; padding-top:54px; }
+    #uploadScreen.hidden { display:none; } /* hidden 클래스가 추가되면 숨김 */
+    .ucard { background:var(--sur); border:1px solid var(--bdr); border-radius:16px; width:580px; max-width:95vw; box-shadow:0 8px 32px var(--shd2); overflow:hidden; }
+    .ucard-hd { padding:20px 24px; border-bottom:1px solid var(--bdr); font-size:16px; font-weight:700; display:flex; align-items:center; gap:8px; }
+    .ucard-hd-icon { width:28px; height:28px; background:var(--acc); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:14px; }
+    .ucard-bd { padding:24px; }
+    /* --- 드래그 앤 드롭 영역: 파일을 끌어다 놓거나 클릭하여 업로드 --- */
+    .dropzone { border:2px dashed var(--bdr); border-radius:12px; padding:40px 20px; text-align:center; cursor:pointer; transition:all 0.3s; background:rgba(255,255,255,0.02); }
+    .dropzone:hover,.dropzone.drag-over { border-color:var(--acc); background:rgba(232,67,147,0.05); } /* 마우스 올리거나 파일 드래그 시 분홍색 강조 */
+    .dropzone-icon { font-size:40px; margin-bottom:12px; opacity:0.7; }
+    .dropzone-label { font-size:15px; font-weight:600; margin-bottom:6px; color:var(--txt); }
+    .dropzone-desc { font-size:12px; color:var(--txt3); }
+    .ucard-tree { margin-top:20px; background:var(--dk); border-radius:8px; padding:16px; font-size:12px; font-family:'Courier New',monospace; color:var(--txt2); line-height:1.8; }
+    .ucard-tree .tree-title { font-family:'Noto Sans KR',sans-serif; font-weight:600; font-size:12px; color:var(--txt3); margin-bottom:8px; display:block; }
+    .tree-folder { color:var(--yel); }
+    .tree-file { color:var(--txt2); }
+    .ustep { display:flex; gap:12px; margin-top:20px; justify-content:center; }
+    .ustep-item { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--txt2); }
+    .ustep-num { width:22px; height:22px; background:var(--dk2); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--acc); }
+    .ustep-arrow { color:var(--txt3); font-size:14px; }
+
+    /* ═══════════════════════════════════════════════════════
+       로딩 화면 / 에디터 화면 / 토스트 알림
+       설명:
+       - 로딩 화면: ZIP 파싱이나 내보내기 중에 표시되는 반투명 오버레이
+       - 에디터 화면: 미리보기가 표시되는 메인 작업 영역
+       - 토스트 알림: 성공/오류/정보 메시지를 상단에 잠깐 표시
+       ═══════════════════════════════════════════════════════ */
+    #loadingScreen { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(26,26,46,0.95); z-index:900; }
+    #loadingScreen.hidden { display:none; }
+    /* --- 로딩 스피너: 회전하는 원형 애니메이션 --- */
+    .spinner { width:44px; height:44px; border:3px solid var(--bdr); border-top-color:var(--acc); border-radius:50%; animation:spin 0.8s linear infinite; margin-bottom:16px; }
+    @keyframes spin { to{transform:rotate(360deg);} }
+    .loading-text { font-size:14px; color:var(--txt2); text-align:center; }
+    .loading-sub { font-size:12px; color:var(--txt3); margin-top:6px; }
+    /* --- 에디터 메인 화면: 미리보기가 표시되는 영역 --- */
+    #editorScreen { padding-top:54px; min-height:100vh; display:flex; justify-content:center; background:var(--bg); }
+    #editorScreen.hidden { display:none; }
+    .canvas { padding:24px; display:flex; justify-content:center; width:100%; }
+    /* --- 폰 프레임: 실제 콘텐츠가 렌더링되는 흰색 영역 (기본 390px = 모바일 너비) --- */
+    .phone { width:390px; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 24px var(--shd2); transition:width 0.3s ease; position:relative; }
+    .phone.pc-mode { width:900px; } /* PC 모드일 때 너비 확장 */
+    /* --- 토스트 알림: 화면 상단 중앙에 2초간 표시되는 메시지 --- */
+    .toast-container { position:fixed; top:62px; left:50%; transform:translateX(-50%); z-index:2000; display:flex; flex-direction:column; align-items:center; gap:8px; pointer-events:none; }
+    .toast { padding:10px 20px; border-radius:8px; font-size:13px; font-weight:500; color:#fff; pointer-events:auto; animation:toastIn 0.3s ease,toastOut 0.3s ease 1.7s forwards; box-shadow:0 4px 12px var(--shd); max-width:400px; text-align:center; }
+    .toast.s { background:#00b894; }  /* 성공 메시지 (녹색) */
+    .toast.e { background:#e74c3c; }  /* 오류 메시지 (빨간색) */
+    .toast.i { background:var(--acc2); } /* 정보 메시지 (보라색) */
+    .toast.w { background:#f39c12; color:#1a1a2e; } /* 경고 메시지 (노란색) */
+    @keyframes toastIn { from{opacity:0;transform:translateY(-10px);} to{opacity:1;transform:translateY(0);} }
+    @keyframes toastOut { from{opacity:1;} to{opacity:0;transform:translateY(-10px);} }
+
+    /* ═══════════════════════════════════════════════════════
+       플로팅 패널 (Floating Panel)
+       설명: 이미지나 링크를 클릭하면 나타나는 편집 팝업.
+             이미지 업로드, alt 텍스트 수정, 링크 URL/유형 변경 등을
+             할 수 있습니다. 클릭한 요소 근처에 위치합니다.
+       ═══════════════════════════════════════════════════════ */
+    .fp { position:fixed; z-index:1100; width:340px; background:var(--sur); border:1px solid var(--bdr); border-radius:12px; box-shadow:0 8px 32px var(--shd2); display:none; overflow:hidden; }
+    .fp.show { display:block; } /* show 클래스가 추가되면 표시 */
+    .fp-hd { padding:14px 16px; border-bottom:1px solid var(--bdr); display:flex; align-items:center; justify-content:space-between; font-size:14px; font-weight:600; }
+    .fp-hd-close { width:24px; height:24px; display:flex; align-items:center; justify-content:center; border-radius:4px; font-size:16px; color:var(--txt3); cursor:pointer; transition:all 0.2s; }
+    .fp-hd-close:hover { background:var(--dk); color:var(--txt); }
+    .fp-bd { padding:16px; max-height:420px; overflow-y:auto; }
+    .fp-upload { border:2px dashed var(--bdr); border-radius:8px; padding:20px; text-align:center; cursor:pointer; transition:all 0.2s; margin-bottom:12px; font-size:12px; color:var(--txt3); }
+    .fp-upload:hover { border-color:var(--acc2); background:rgba(168,85,247,0.05); }
+    .fp-upload-icon { font-size:24px; margin-bottom:6px; }
+    .fp-upload-preview { display:none; align-items:center; gap:8px; padding:8px; background:var(--dk); border-radius:6px; margin-bottom:12px; font-size:12px; }
+    .fp-upload-preview.show { display:flex; }
+    .fp-upload-preview img { width:48px; height:48px; object-fit:cover; border-radius:4px; }
+    .fp-upload-preview .fp-preview-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--txt2); }
+    .fp-upload-preview .fp-preview-change { font-size:11px; color:var(--acc); cursor:pointer; }
+    .fp-field { margin-bottom:12px; }
+    .fp-field label { display:block; font-size:12px; font-weight:500; color:var(--txt2); margin-bottom:4px; }
+    .fp-field input,.fp-field select { width:100%; padding:8px 10px; background:var(--dk); border:1px solid var(--bdr); border-radius:6px; color:var(--txt); font-size:13px; font-family:inherit; outline:none; transition:border-color 0.2s; }
+    .fp-field input:focus,.fp-field select:focus { border-color:var(--acc2); }
+    .fp-actions { display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--bdr); }
+    .fp-btn { flex:1; padding:8px; border-radius:6px; font-size:13px; font-weight:500; text-align:center; transition:all 0.2s; }
+    .fp-btn.confirm { background:var(--acc2); color:#fff; }
+    .fp-btn.confirm:hover { background:#9333ea; }
+    .fp-btn.cancel { background:var(--dk); color:var(--txt2); border:1px solid var(--bdr); }
+    .fp-btn.cancel:hover { background:var(--dk2); color:var(--txt); }
+
+    /* ═══════════════════════════════════════════════════════
+       사이드 패널 (Slide Panel)
+       설명: 슬라이드를 관리하는 패널. 화면 오른쪽에서 슬라이드 인으로
+             나타납니다. 슬라이드 목록 확인, 추가, 삭제, 이미지 교체가
+             가능합니다. 뒤쪽 반투명 배경(백드롭)을 클릭하면 닫힙니다.
+       ═══════════════════════════════════════════════════════ */
+    /* --- 백드롭: 사이드 패널 뒤의 반투명 검은 배경 --- */
+    .sp-bd { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1050; display:none; }
+    .sp-bd.show { display:block; }
+    /* --- 사이드 패널 본체: 오른쪽에서 슬라이드 인 --- */
+    .sp { position:fixed; top:0; right:-380px; bottom:0; width:380px; background:var(--sur); border-left:1px solid var(--bdr); z-index:1060; display:flex; flex-direction:column; transition:right 0.3s ease; box-shadow:-4px 0 24px var(--shd2); }
+    .sp.show { right:0; } /* show 클래스가 추가되면 화면에 표시 */
+    .sp-hd { padding:16px 20px; border-bottom:1px solid var(--bdr); display:flex; align-items:center; justify-content:space-between; font-size:15px; font-weight:600; flex-shrink:0; }
+    .sp-hd-close { width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:6px; font-size:18px; color:var(--txt3); cursor:pointer; transition:all 0.2s; }
+    .sp-hd-close:hover { background:var(--dk); color:var(--txt); }
+    .sp-body { flex:1; overflow-y:auto; padding:16px 20px; }
+    .sp-slide-list { display:flex; flex-direction:column; gap:12px; }
+    .sp-slide-item { background:var(--dk); border:1px solid var(--bdr); border-radius:8px; padding:12px; display:flex; align-items:center; gap:12px; }
+    .sp-slide-num { width:28px; height:28px; background:var(--grn); color:#fff; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; }
+    .sp-slide-thumb { width:64px; height:48px; object-fit:cover; border-radius:4px; background:var(--bg); flex-shrink:0; cursor:pointer; }
+    .sp-slide-info { flex:1; font-size:12px; color:var(--txt2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .sp-slide-del { width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:6px; font-size:14px; color:var(--txt3); cursor:pointer; transition:all 0.2s; flex-shrink:0; }
+    .sp-slide-del:hover { background:#e74c3c; color:#fff; }
+    .sp-footer { padding:12px 20px; border-top:1px solid var(--bdr); flex-shrink:0; }
+    .sp-add-btn { width:100%; padding:10px; background:var(--grn); color:#fff; border-radius:8px; font-size:13px; font-weight:600; text-align:center; transition:all 0.2s; }
+    .sp-add-btn:hover { background:#00a381; }
+
+    /* ═══════════════════════════════════════════════════════
+       콘텐츠 정보 드로어 (Info Drawer)
+       설명: 화면 하단에서 올라오는 패널. 콘텐츠명(contentName)과
+             태깅코드(contentCode)를 확인하고 수정할 수 있습니다.
+             상단 바의 "콘텐츠 정보" 버튼을 클릭하면 나타납니다.
+       ═══════════════════════════════════════════════════════ */
+    .info-dw { position:fixed; left:0; right:0; bottom:-300px; height:300px; background:var(--sur); border-top:1px solid var(--bdr); border-radius:16px 16px 0 0; z-index:1100; transition:bottom 0.3s ease; box-shadow:0 -4px 24px var(--shd2); display:flex; flex-direction:column; }
+    .info-dw.show { bottom:0; }
+    .info-dw-hd { padding:16px 24px; border-bottom:1px solid var(--bdr); display:flex; align-items:center; justify-content:space-between; font-size:15px; font-weight:600; flex-shrink:0; }
+    .info-dw-close { width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:6px; font-size:18px; color:var(--txt3); cursor:pointer; transition:all 0.2s; }
+    .info-dw-close:hover { background:var(--dk); color:var(--txt); }
+    .info-dw-bd { padding:24px; flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:16px; }
+    .info-field { display:flex; flex-direction:column; gap:6px; }
+    .info-field label { font-size:12px; font-weight:500; color:var(--txt2); }
+    .info-field input { padding:10px 12px; background:var(--dk); border:1px solid var(--bdr); border-radius:8px; color:var(--txt); font-size:14px; font-family:inherit; outline:none; transition:border-color 0.2s; }
+    .info-field input:focus { border-color:var(--acc); }
+
+    /* ═══════════════════════════════════════════════════════
+       탭 관리 패널 (Tab Manager Panel)
+       설명: 탭 버튼을 더블클릭하면 나타나는 패널. 각 탭의 ON/OFF
+             이미지를 교체하거나 탭을 삭제할 수 있습니다.
+             이미지 업로드 시에도 패널이 닫히지 않고 열린 상태를 유지합니다.
+       ═══════════════════════════════════════════════════════ */
+    .tab-mgr-panel { position:fixed; z-index:1100; width:440px; max-height:80vh; background:var(--sur); border:1px solid var(--bdr); border-radius:12px; box-shadow:0 8px 32px var(--shd2); display:none; overflow:hidden; }
+    .tab-mgr-panel.show { display:block; }
+    .tab-mgr-hd { padding:14px 16px; border-bottom:1px solid var(--bdr); display:flex; align-items:center; justify-content:space-between; font-size:14px; font-weight:600; }
+    .tab-mgr-close { width:24px; height:24px; display:flex; align-items:center; justify-content:center; border-radius:4px; font-size:16px; color:var(--txt3); cursor:pointer; transition:all 0.2s; }
+    .tab-mgr-close:hover { background:var(--dk); color:var(--txt); }
+    .tab-mgr-bd { padding:16px; max-height:70vh; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
+    .tab-mgr-item { background:var(--dk); border:1px solid var(--bdr); border-radius:8px; padding:12px; }
+    .tab-mgr-item-hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .tab-mgr-badge { padding:2px 10px; background:var(--yel); color:var(--dk); font-size:11px; font-weight:700; border-radius:10px; }
+    .tab-mgr-del { width:24px; height:24px; display:flex; align-items:center; justify-content:center; border-radius:4px; font-size:14px; color:var(--txt3); cursor:pointer; transition:all 0.2s; }
+    .tab-mgr-del:hover { background:#e74c3c; color:#fff; }
+    .tab-mgr-uploads { display:flex; gap:8px; }
+    .tab-mgr-upload { flex:1; border:1px dashed var(--bdr); border-radius:6px; padding:10px; text-align:center; cursor:pointer; font-size:11px; color:var(--txt3); transition:all 0.2s; }
+    .tab-mgr-upload:hover { border-color:var(--yel); background:rgba(253,203,110,0.05); }
+    .tab-mgr-upload-label { font-weight:500; margin-top:4px; }
+
+    /* ═══════════════════════════════════════════════════════
+       텍스트 편집 툴바
+       설명: 텍스트 요소를 클릭하면 해당 요소 위에 나타나는 작은 툴바.
+             "확인" 버튼으로 변경 저장, "취소" 버튼으로 원래 텍스트 복원.
+       ═══════════════════════════════════════════════════════ */
+    .txt-tb { position:absolute; z-index:1100; display:none; background:var(--dk); border:1px solid var(--bdr); border-radius:8px; padding:4px; box-shadow:0 4px 12px var(--shd); gap:4px; }
+    .txt-tb.show { display:flex; }
+    .txt-tb-btn { padding:6px 14px; border-radius:4px; font-size:12px; font-weight:500; transition:all 0.2s; }
+    .txt-tb-btn.ok { background:var(--yel); color:var(--dk); }
+    .txt-tb-btn.ok:hover { background:#f9bf3b; }
+    .txt-tb-btn.no { color:var(--txt3); }
+    .txt-tb-btn.no:hover { background:var(--sur); color:var(--txt); }
+
+    /* ═══════════════════════════════════════════════════════
+       편집 영역 (Edit Zone) 스타일
+       설명: 미리보기 내 각 콘텐츠 요소(이미지, 링크, 슬라이드, 텍스트)에
+             적용되는 스타일. 마우스를 올리면 유형별 색상 테두리가 표시되고,
+             삭제/이동 버튼이 나타납니다.
+       ═══════════════════════════════════════════════════════ */
+    /* --- 기본 편집 영역: 모든 편집 가능 요소의 공통 스타일 --- */
+    .ez { position:relative; cursor:pointer; transition:all 0.2s; }
+    .ez::after { content:''; position:absolute; inset:0; border:2px solid transparent; border-radius:4px; pointer-events:none; transition:all 0.2s; z-index:10; }
+    .ez:hover::after { border-color:var(--bdr); background:rgba(255,255,255,0.03); }
+    /* --- 유형 레이블: 마우스 올리면 왼쪽 상단에 "이미지", "링크" 등 표시 --- */
+    .ez-ov { position:absolute; top:4px; left:4px; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; color:#fff; opacity:0; transition:opacity 0.2s; z-index:11; pointer-events:none; }
+    .ez:hover .ez-ov { opacity:1; }
+    /* --- 이미지 블록: 보라색 테두리 (--acc2) --- */
+    .ez-img:hover::after { border-color:var(--acc2); background:rgba(168,85,247,0.08); }
+    .ez-img .ez-ov { background:var(--acc2); }
+    /* --- 링크 블록: 분홍색 테두리 (--acc) --- */
+    .ez-link:hover::after { border-color:var(--acc); background:rgba(232,67,147,0.08); }
+    .ez-link .ez-ov { background:var(--acc); }
+    /* --- 슬라이드 블록: 녹색 테두리 (--grn) --- */
+    .ez-slide-item:hover::after { border-color:var(--grn); background:rgba(0,184,148,0.08); z-index:10; }
+    .ez-slide-item .ez-ov { background:var(--grn); z-index:11; }
+    /* --- 탭 버튼: 노란색 테두리 (--yel) --- */
+    .tab-btn-wrap { display:flex; width:100%; }
+    .tab-btn { position:relative; cursor:pointer; flex:1; transition:all 0.2s; }
+    .tab-btn::after { content:''; position:absolute; inset:0; border:2px solid transparent; pointer-events:none; transition:all 0.2s; }
+    .tab-btn:hover::after { border-color:var(--yel); background:rgba(253,203,110,0.08); }
+    .tab-btn img { width:100%; display:block; }
+    /* --- 텍스트 편집 영역: 노란색 테두리 (--yel), 클릭하면 직접 수정 가능 --- */
+    .et { position:relative; cursor:text; transition:all 0.2s; min-height:1em; }
+    .et::after { content:''; position:absolute; inset:0; border:2px solid transparent; border-radius:4px; pointer-events:none; transition:all 0.2s; }
+    .et:hover::after { border-color:var(--yel); background:rgba(253,203,110,0.08); }
+    .et.editing { outline:2px solid var(--yel); outline-offset:2px; border-radius:2px; }
+    .et.editing::after { border-color:transparent; background:none; }
+    /* --- 슬라이드 뷰포트: 원본 슬라이드의 좌우 넘기기 영역 --- */
+    .slide-vp { position:relative !important; overflow:hidden; width:100% !important; display:block !important; top:auto !important; }
+    .slide-track { display:flex !important; transition:transform 0.3s ease; width:100% !important; position:static !important; } /* 슬라이드 트랙: 가로로 나열된 슬라이드들 */
+    .slide-item-wrap { min-width:100% !important; width:100% !important; flex-shrink:0; position:static !important; } /* 각 슬라이드 아이템 */
+    .slide-item-wrap img { width:100% !important; height:auto !important; display:block; }
+    /* --- 슬라이드 좌우 네비게이션 버튼 --- */
+    .slide-nav { position:absolute; top:50%; transform:translateY(-50%); width:32px; height:32px; background:rgba(0,0,0,0.5); color:#fff; border:none; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:14px; z-index:12; transition:all 0.2s; }
+    .slide-nav:hover { background:rgba(0,0,0,0.7); }
+    .slide-nav.prev { left:8px; }
+    .slide-nav.next { right:8px; }
+    .slide-dots { display:flex; justify-content:center; gap:6px; padding:10px 0; }
+    .slide-dot { width:8px; height:8px; border-radius:50%; background:var(--bdr); cursor:pointer; transition:all 0.2s; }
+    .slide-dot.active { background:var(--grn); transform:scale(1.2); }
+    .slide-section-card { background:linear-gradient(135deg,rgba(0,184,148,0.1),rgba(0,184,148,0.02)); border:1px solid rgba(0,184,148,0.2); border-radius:8px; padding:8px 12px; margin:4px 0; display:flex; align-items:center; gap:8px; font-size:11px; color:var(--grn); font-weight:500; }
+    /* --- 인라인 슬라이드 모듈: 탭 내부에 표시되는 슬라이드 컨테이너 --- */
+    .inline-slide-module { position:relative !important; margin:0; border:1px solid rgba(0,184,148,0.15); border-radius:6px; overflow:hidden !important; display:block !important; width:100% !important; float:none !important; clear:both; }
+
+    /* ═══════════════════════════════════════════════════════
+       Swiper CSS 오버라이드
+       설명: 업로드된 ZIP의 원본 CSS에는 swiper-mask에 position:absolute와
+             top:Xvw 같은 스타일이 있어서, 에디터 미리보기에서 요소들이
+             겹치거나 보이지 않는 문제가 발생합니다.
+             이를 방지하기 위해 #phone 내부의 모든 swiper 관련 요소에
+             position:static !important를 강제 적용합니다.
+       ═══════════════════════════════════════════════════════ */
+    /* 원본 CSS의 .swiper-mask { position:absolute; top:Xvw } 를 에디터 내에서 무효화 */
+    #phone .swiper-mask,
+    .inline-slide-module .swiper-mask,
+    .tab-content-area .swiper-mask,
+    #noTabContent .swiper-mask { position:static !important; top:auto !important; display:block !important; width:100% !important; }
+    #phone .img-box { position:static !important; }
+    #phone .tab-area { position:static !important; }
+    #phone .swiper-mask .swiper { padding:0 !important; }
+    #phone .swiper-mask .swiper .swiper-slide { width:100% !important; }
+    /* --- 탭 콘텐츠 영역: 일반 블록 흐름 보장 (원본 CSS의 absolute 위치 무효화) --- */
+    .tab-content-area { position:static !important; display:block; width:100%; overflow:visible; }
+    #noTabContent { position:static !important; display:block; width:100%; overflow:visible; }
+    .inline-slide-module .slide-module-hd { display:flex; align-items:center; justify-content:space-between; padding:6px 10px; background:rgba(0,184,148,0.08); font-size:11px; color:var(--grn); font-weight:500; }
+    .inline-slide-module .slide-module-manage { padding:4px 10px; background:var(--grn); color:#fff; border-radius:4px; font-size:11px; font-weight:500; cursor:pointer; transition:all 0.2s; }
+    .inline-slide-module .slide-module-manage:hover { background:#00a381; }
+    /* --- 블록형 슬라이드: 에디터에서 추가한 슬라이드는 이미지가 세로로 쌓이는 형태 --- */
+    .block-slide-list { display:block; width:100%; }
+    .block-slide-item { display:block; width:100%; }
+    .block-slide-item img { width:100%; height:auto; display:block; }
+    /* --- 외부 이미지 섹션: http/https로 시작하는 외부 URL 이미지 (파란색 점선 테두리) --- */
+    .ext-img-section { position:relative; border:1px dashed #74b9ff; border-radius:6px; overflow:hidden; }
+    .ext-img-section::before { content:'외부 이미지'; position:absolute; top:4px; left:4px; padding:2px 8px; background:#74b9ff; color:#1a1a2e; border-radius:4px; font-size:10px; font-weight:600; z-index:11; }
+    /* --- 탭 추가 바: 탭 버튼 아래에 표시되는 "+ 탭 추가" 버튼 --- */
+    .tab-add-bar { display:flex; align-items:center; justify-content:center; padding:8px; background:rgba(253,203,110,0.08); border:1px dashed var(--yel); border-radius:6px; margin:4px 0; cursor:pointer; font-size:12px; color:var(--yel); font-weight:500; transition:all 0.2s; gap:6px; }
+    .tab-add-bar:hover { background:rgba(253,203,110,0.15); }
+    /* --- 탭 삭제 버튼: 탭 버튼 위에 마우스를 올리면 나타나는 빨간 X 버튼 --- */
+    .tab-del-btn { position:absolute; top:2px; right:2px; width:20px; height:20px; background:rgba(231,76,60,0.9); color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; cursor:pointer; opacity:0; transition:opacity 0.2s; z-index:12; }
+    .tab-btn:hover .tab-del-btn { opacity:1; }
+    /* --- 삽입 존: 콘텐츠 영역 하단에 표시되는 "이미지 추가" / "슬라이드 추가" 버튼 영역 --- */
+    .insert-slide-zone { display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; margin:8px 4px; opacity:1; /* 항상 표시 */ background:rgba(255,255,255,0.03); border:1px dashed var(--bdr); border-radius:6px; transition:background 0.2s; }
+    .insert-slide-zone:hover { background:rgba(255,255,255,0.06); }
+    .insert-btn { padding:4px 12px; border-radius:4px; font-size:11px; font-weight:500; cursor:pointer; transition:all 0.2s; border:1px dashed; }
+    .insert-btn.img-insert { color:var(--acc2); border-color:var(--acc2); }
+    .insert-btn.img-insert:hover { background:rgba(168,85,247,0.1); }
+    .insert-btn.slide-insert { color:var(--grn); border-color:var(--grn); }
+    .insert-btn.slide-insert:hover { background:rgba(0,184,148,0.1); }
+    /* --- 소스 영역 삭제 버튼: 마우스 올리면 우측 상단에 나타나는 빨간 X --- */
+    .ez-del-btn { position:absolute; top:4px; right:4px; width:24px; height:24px; background:rgba(231,76,60,0.9); color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; cursor:pointer; opacity:0; transition:opacity 0.2s; z-index:12; }
+    .ez:hover .ez-del-btn { opacity:1; }
+    /* --- 소스 영역 이동 버튼: 마우스 올리면 나타나는 ▲/▼ 버튼 --- */
+    .ez-move-btns { position:absolute; top:4px; right:32px; display:flex; gap:2px; opacity:0; transition:opacity 0.2s; z-index:12; }
+    .ez:hover .ez-move-btns { opacity:1; }
+    .ez-move-btn { width:24px; height:24px; background:rgba(0,0,0,0.6); color:#fff; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:11px; cursor:pointer; transition:all 0.2s; }
+    .ez-move-btn:hover { background:var(--dk2); }
+
+    /* ═══════════════════════════════════════════════════════
+       원본 swiper/img-box CSS 완전 오버라이드
+       설명: 업로드된 ZIP의 CSS에는 swiper-mask에 position:absolute,
+             top:Xvw 등의 스타일이 있습니다. 이 스타일들이 에디터
+             미리보기에서 요소를 겹치게 만들거나 화면 밖으로 밀어내는
+             문제를 일으킵니다.
+             이를 해결하기 위해 #phone 내부의 모든 swiper 관련 스타일을
+             !important로 강제 리셋합니다.
+       ═══════════════════════════════════════════════════════ */
+    /* --- swiper-mask: 절대 위치를 정적 위치로 강제 변환 --- */
+    #phone .swiper-mask {
+      position: static !important;
+      top: auto !important;
+      left: auto !important;
+      right: auto !important;
+      bottom: auto !important;
+      width: 100% !important;
+      height: auto !important;
+      display: block !important;
+      float: none !important;
+      transform: none !important;
+    }
+    /* --- img-box: 이미지 컨테이너의 절대 위치 무효화 --- */
+    #phone .img-box {
+      position: static !important;
+      overflow: visible !important;
+    }
+    /* --- tab-area: 탭 콘텐츠 영역의 절대 위치 무효화 --- */
+    #phone .tab-area {
+      position: static !important;
+      overflow: visible !important;
+    }
+    /* --- swiper 내부 요소들: 패딩/래퍼/슬라이드 스타일 리셋 --- */
+    #phone .swiper-mask .swiper {
+      padding: 0 !important;
+      overflow: visible !important;
+    }
+    #phone .swiper-mask .swiper-wrapper {
+      display: flex !important;
+      position: static !important;
+      transform: none !important;
+    }
+    #phone .swiper-mask .swiper-slide {
+      width: 100% !important;
+      min-width: 100% !important;
+      flex-shrink: 0 !important;
+    }
+    #phone .swiper-mask .swiper-slide img {
+      width: 100% !important;
+      height: auto !important;
+    }
+  </style>
+</head>
+<body>
+  <!-- ═══════════════════════════════════════════════════════
+       토스트 컨테이너
+       설명: 성공/오류/정보 알림 메시지가 표시되는 영역.
+             화면 상단 중앙에 위치하며, 메시지는 2초 후 자동으로 사라집니다.
+       ═══════════════════════════════════════════════════════ -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       상단 바 (Topbar)
+       설명: 화면 최상단에 고정되는 메뉴 바.
+             - 브랜드 로고 (애니메이션 점 4개 + "콘텐츠 에디터" 텍스트)
+             - 파일명 힌트 (업로드한 ZIP 파일명)
+             - 범례 (이미지=보라, 링크=분홍, 텍스트·탭=노랑, 슬라이드=녹색, 외부이미지=파랑)
+             - MO/PC 디바이스 전환 토글
+             - "변경됨" 배지 (편집 발생 시 표시)
+             - 콘텐츠 정보 / 초기화 / ZIP 저장 버튼
+       ═══════════════════════════════════════════════════════ -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-dots"><span></span><span></span><span></span><span></span></div>
+      콘텐츠 에디터
+    </div>
+    <div class="topbar-hint" id="topbarHint"></div>
+    <div class="topbar-sep"></div>
+    <div class="legend" id="legend">
+      <div class="legend-item"><span class="legend-dot img"></span>이미지</div>
+      <div class="legend-item"><span class="legend-dot link"></span>링크</div>
+      <div class="legend-item"><span class="legend-dot txt"></span>텍스트·탭</div>
+      <div class="legend-item"><span class="legend-dot slide"></span>슬라이드</div>
+      <div class="legend-item"><span class="legend-dot ext"></span>외부이미지</div>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="dev-tgl" id="devTgl">
+      <button class="active" id="btnMO">MO</button>
+      <button id="btnPC">PC</button>
+    </div>
+    <span class="bdg-chg" id="bdgChg">변경됨</span>
+    <button class="topbar-btn info" id="btnInfo">콘텐츠 정보</button>
+    <button class="topbar-btn reset" id="btnReset" disabled>초기화</button>
+    <button class="topbar-btn export" id="btnExp" disabled>ZIP 저장</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       업로드 화면
+       설명: 에디터를 처음 열면 보이는 화면.
+             - 드래그 앤 드롭 영역: ZIP 파일을 끌어다 놓거나 클릭하여 업로드
+             - ZIP 구조 안내: 올바른 ZIP 파일 구조를 트리 형태로 안내
+             - 사용 단계: "1. ZIP 업로드 → 2. 클릭으로 수정 → 3. ZIP 저장"
+             ZIP 파일이 로드되면 이 화면은 숨겨지고 에디터 화면이 나타납니다.
+       ═══════════════════════════════════════════════════════ -->
+  <div id="uploadScreen">
+    <div class="ucard">
+      <div class="ucard-hd"><div class="ucard-hd-icon">📦</div>ZIP 파일 업로드</div>
+      <div class="ucard-bd">
+        <div class="dropzone" id="dropzone">
+          <div class="dropzone-icon">📁</div>
+          <div class="dropzone-label">ZIP 파일을 여기에 드래그하거나 클릭하세요</div>
+          <div class="dropzone-desc">.zip 형식만 지원됩니다</div>
+        </div>
+        <input type="file" id="zipInput" accept=".zip">
+        <div class="ucard-tree">
+          <span class="tree-title">📂 ZIP 파일 구조 안내</span>
+          <span class="tree-folder">html_콘텐츠코드/</span><br>
+          &nbsp;&nbsp;├── <span class="tree-file">index.html</span><br>
+          &nbsp;&nbsp;├── <span class="tree-folder">css/</span> ← 스타일<br>
+          &nbsp;&nbsp;├── <span class="tree-folder">js/</span> ← 스크립트<br>
+          &nbsp;&nbsp;└── <span class="tree-folder">images/</span> ← 이미지
+        </div>
+        <div class="ustep">
+          <div class="ustep-item"><span class="ustep-num">1</span>ZIP 업로드</div>
+          <span class="ustep-arrow">→</span>
+          <div class="ustep-item"><span class="ustep-num">2</span>클릭으로 수정</div>
+          <span class="ustep-arrow">→</span>
+          <div class="ustep-item"><span class="ustep-num">3</span>ZIP 저장</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       로딩 화면
+       설명: ZIP 파싱이나 내보내기 중에 표시되는 반투명 오버레이.
+             스피너 애니메이션과 현재 처리 상태 텍스트가 표시됩니다.
+             처리가 완료되면 자동으로 숨겨집니다.
+       ═══════════════════════════════════════════════════════ -->
+  <div id="loadingScreen" class="hidden">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loadingText">파일을 처리하고 있습니다...</div>
+    <div class="loading-sub" id="loadingSub"></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       에디터 화면
+       설명: ZIP 파싱 완료 후 표시되는 메인 작업 영역.
+             #phone 요소 안에 업로드된 콘텐츠의 미리보기가 렌더링됩니다.
+             각 이미지/링크/슬라이드를 클릭하여 편집할 수 있습니다.
+       ═══════════════════════════════════════════════════════ -->
+  <div id="editorScreen" class="hidden">
+    <div class="canvas"><div class="phone" id="phone"></div></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       플로팅 패널 (Floating Panel)
+       설명: 이미지나 링크를 클릭하면 나타나는 편집 팝업.
+             - 이미지 업로드 영역 (드래그 또는 클릭)
+             - 이미지 미리보기 (업로드 후 표시)
+             - alt 텍스트 입력 필드
+             - 링크 편집 필드 (링크 블록일 때만 표시): 유형, URL, 버튼명
+             - 확인/취소 버튼
+             기본적으로 숨겨져 있으며, 이미지/링크 클릭 시 해당 요소 근처에 표시됩니다.
+       ═══════════════════════════════════════════════════════ -->
+  <div class="fp" id="floatingPanel">
+    <div class="fp-hd">
+      <span id="fpTitle">이미지 편집</span>
+      <div class="fp-hd-close" id="fpClose">✕</div>
+    </div>
+    <div class="fp-bd" id="fpBody">
+      <div class="fp-upload" id="fpUpload">
+        <div class="fp-upload-icon">🖼️</div>
+        이미지를 클릭하거나 드래그하여 업로드
+      </div>
+      <div class="fp-upload-preview" id="fpPreview">
+        <img id="fpPreviewImg" src="" alt="미리보기">
+        <span class="fp-preview-name" id="fpPreviewName"></span>
+        <span class="fp-preview-change" id="fpPreviewChange">변경</span>
+      </div>
+      <div class="fp-field"><label for="fpAlt">대체 텍스트 (alt)</label><input type="text" id="fpAlt" placeholder="이미지 설명을 입력하세요"></div>
+      <div class="fp-field" id="fpLinkTypeField" style="display:none;"><label for="fpLinkType">링크 유형</label><select id="fpLinkType"><option value="BrowserOpen">BrowserOpen</option><option value="shopping">shopping</option><option value="event">event</option><option value="sso">sso</option></select></div>
+      <div class="fp-field" id="fpLinkUrlField" style="display:none;"><label for="fpLinkUrl">URL</label><input type="text" id="fpLinkUrl" placeholder="링크 URL을 입력하세요"></div>
+      <div class="fp-field" id="fpLinkValueField" style="display:none;"><label for="fpLinkValue">버튼명</label><input type="text" id="fpLinkValue" placeholder="버튼명을 입력하세요"></div>
+    </div>
+    <div class="fp-actions">
+      <button class="fp-btn cancel" id="fpCancel">취소</button>
+      <button class="fp-btn confirm" id="fpConfirm">확인</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       사이드 패널 (Slide Panel)
+       설명: 슬라이드를 관리하는 패널. 화면 오른쪽에서 슬라이드 인으로 나타남.
+             - 백드롭: 뒤쪽 반투명 배경 (클릭하면 패널 닫힘)
+             - 슬라이드 목록: 각 슬라이드의 번호, 미리보기, 삭제 버튼
+             - 슬라이드 추가 버튼
+             기본적으로 숨겨져 있으며, 슬라이드 블록의 "관리" 버튼 클릭 시 표시됩니다.
+       ═══════════════════════════════════════════════════════ -->
+  <div class="sp-bd" id="spBackdrop"></div>
+  <div class="sp" id="sidePanel">
+    <div class="sp-hd"><span>슬라이드 관리</span><div class="sp-hd-close" id="spClose">✕</div></div>
+    <div class="sp-body" id="spBody"><div class="sp-slide-list" id="spSlideList"></div></div>
+    <div class="sp-footer"><button class="sp-add-btn" id="spAddBtn">+ 슬라이드 추가</button></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       콘텐츠 정보 드로어 (Info Drawer)
+       설명: 화면 하단에서 올라오는 패널.
+             - 콘텐츠명 (contentName) 입력 필드
+             - 태깅코드 (contentCode) 입력 필드
+             상단 바의 "콘텐츠 정보" 버튼을 클릭하면 나타납니다.
+             값을 수정하면 ZIP 내보내기 시 index.html에 반영됩니다.
+       ═══════════════════════════════════════════════════════ -->
+  <div class="info-dw" id="infoDrawer">
+    <div class="info-dw-hd"><span>콘텐츠 정보</span><div class="info-dw-close" id="infoClose">✕</div></div>
+    <div class="info-dw-bd">
+      <div class="info-field"><label for="infoName">콘텐츠명 (contentName)</label><input type="text" id="infoName" placeholder="콘텐츠명을 입력하세요"></div>
+      <div class="info-field"><label for="infoCode">태깅코드 (contentCode)</label><input type="text" id="infoCode" placeholder="태깅코드를 입력하세요"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       탭 관리 패널 (Tab Manager Panel)
+       설명: 탭 버튼을 더블클릭하면 나타나는 패널.
+             - 각 탭의 ON/OFF 이미지 업로드 영역
+             - 탭 삭제 버튼 (최소 1개는 유지)
+             이미지 업로드 시에도 패널이 닫히지 않고 열린 상태를 유지합니다.
+       ═══════════════════════════════════════════════════════ -->
+  <div class="tab-mgr-panel" id="tabMgrPanel">
+    <div class="tab-mgr-hd"><span>탭 관리</span><div class="tab-mgr-close" id="tabMgrClose">✕</div></div>
+    <div class="tab-mgr-bd" id="tabMgrBody"></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       텍스트 편집 툴바
+       설명: 텍스트 요소를 클릭하면 해당 요소 위에 나타나는 작은 툴바.
+             "확인" 버튼으로 변경 저장, "취소" 버튼으로 원래 텍스트 복원.
+             기본적으로 숨겨져 있으며, 텍스트 편집 모드 진입 시 표시됩니다.
+       ═══════════════════════════════════════════════════════ -->
+  <div class="txt-tb" id="txtToolbar">
+    <button class="txt-tb-btn ok" id="txtTbOk">확인</button>
+    <button class="txt-tb-btn no" id="txtTbNo">취소</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       숨겨진 파일 입력 요소들
+       설명: 실제 파일 선택 대화상자를 여는 <input type="file"> 요소들.
+             화면에는 보이지 않으며, JavaScript에서 .click()으로 호출합니다.
+             - fpFileInput: 플로팅 패널의 이미지 업로드용
+             - spFileInput: 사이드 패널의 슬라이드 이미지 업로드용
+             - tabMgrFileInput: 탭 관리 패널의 탭 이미지 업로드용
+       ═══════════════════════════════════════════════════════ -->
+  <input type="file" id="fpFileInput" accept="image/*">
+  <input type="file" id="spFileInput" accept="image/*">
+  <input type="file" id="tabMgrFileInput" accept="image/*">
+
+  <script>
+    /* ═══════════════════════════════════════════════════════
+       전역 상태 변수
+       설명: 에디터의 모든 데이터를 저장하는 변수들입니다.
+             ZIP 파일에서 읽은 파일들, 이미지 캐시, 사용자가 수정한 내용,
+             탭 구성, 슬라이드 정보, 링크 데이터 등이 여기에 저장됩니다.
+             페이지를 새로고침하면 모든 데이터가 초기화됩니다.
+       ═══════════════════════════════════════════════════════ */
+    let ZIP_FILES = {};      /* ZIP 내부 파일 저장소 (경로 → 파일 내용). 예: {'css/style.css': '...', 'images/top.jpg': Uint8Array} */
+    let IMG_CACHE = {};      /* 이미지 Blob URL 캐시 (경로 → blob URL). ZIP에서 추출한 이미지를 브라우저에서 표시하기 위한 임시 URL */
+    let MODIFIED = {};       /* 사용자가 교체한 이미지 (경로 → dataURL). 원본 경로를 키로 사용하여 내보내기 시 원본 위치에 저장 */
+    let TEXT_MODS = {};      /* 사용자가 수정한 텍스트 (고유ID → 텍스트 내용) */
+    let TABS = [];           /* 탭 구성 배열. 각 항목: {name, offImg:{src,dataUrl,name}, onImg:{src,dataUrl,name}, rawContent} */
+    let activeTabIdx = 0;    /* 현재 활성화된 탭의 인덱스 (0부터 시작) */
+    let SLIDES = [];         /* 탭 없는 구조의 슬라이드 배열. 각 항목: {src, dataUrl, name} */
+    let SLIDE_MODULES = {};  /* 탭 있는 구조의 슬라이드 모듈. {탭인덱스: [{posIdx, isOriginal, slides:[...]}]} */
+    let LINK_OBJ = [];       /* 링크 데이터 배열. 각 항목: {type, url, value} — index.html의 linkObj와 동일 구조 */
+    let EXT_IMAGES = [];     /* 외부 이미지 배열 (http/https URL). 각 항목: {src, dataUrl, name} */
+    let HTML_SRC = '';       /* index.html 원본 문자열 — 내보내기 시 기본 템플릿으로 사용 */
+    let PREFIX = '';         /* ZIP 내 중첩 폴더 접두사. 예: 'html_999999sn/' — 파싱 시 제거하여 경로 정규화 */
+    let contentName = '';    /* 콘텐츠명 — index.html <head> 스크립트의 contentName 값 */
+    let contentCode = '';    /* 태깅코드 — index.html <head> 스크립트의 contentCode 값 */
+    let _uid = 0;            /* 고유 ID 생성용 카운터 */
+    let TAB_TYPE = 'basic-tab'; /* 탭 유형: 'basic-tab' (기본) 또는 'swiper-tab' (스와이프) */
+    let IS_NO_TAB = false;   /* 탭 없는 구조 여부 (true면 탭 없이 이미지/슬라이드만 있는 구조) */
+    let NO_TAB_CONTENT = ''; /* 탭 없는 구조의 콘텐츠 HTML 원본 */
+    let TOP_IMAGES = [];     /* 탭 없는 구조에서 eventBox 최상단 이미지들 */
+    let TAB_TOP_IMAGES = []; /* 탭 있는 구조에서 탭 버튼 위에 있는 상단 이미지들 */
+    let DELETED_PATHS = [];  /* 삭제된 소스 영역의 이미지 경로 목록 — 내보내기 시 ZIP에서 제외 */
+    let ADDED_IMAGES = {};   /* 새로 추가된 이미지 (경로 → dataURL) — 내보내기 시 ZIP에 포함 */
+    let slideCurrentIdx = {}; /* 각 슬라이드 뷰포트의 현재 슬라이드 인덱스 */
+
+    /* --- 고유 ID 생성 함수: 텍스트 편집 등에서 요소를 구분하기 위한 ID --- */
+    function uid() { return 'u' + (++_uid); }
+
+    /* ═══════════════════════════════════════════════════════
+       유틸리티 함수
+       설명: 에디터 전체에서 공통으로 사용하는 도우미 함수들입니다.
+       ═══════════════════════════════════════════════════════ */
+
+    /* --- rImg(path): 이미지 경로를 찾아주는 함수 ---
+       수정된 이미지 → 원본 이미지 → 경로 순서로 확인합니다.
+       1순위: MODIFIED[path] — 사용자가 교체한 이미지 (dataURL)
+       2순위: IMG_CACHE[path] — ZIP에서 추출한 원본 이미지 (Blob URL)
+       3순위: path 그대로 — 외부 URL 이미지 등 fallback */
+    function rImg(path) {
+      if (MODIFIED[path]) return MODIFIED[path];
+      if (IMG_CACHE[path]) return IMG_CACHE[path];
+      return path;
+    }
+
+    /* --- showToast(message, type): 화면 상단에 알림 메시지를 표시하는 함수 ---
+       type: 's'=성공(녹색), 'e'=오류(빨간색), 'i'=정보(보라색), 'w'=경고(노란색)
+       메시지는 2초 후 자동으로 사라집니다. */
+    function showToast(message, type) {
+      var c = document.getElementById('toastContainer');
+      var t = document.createElement('div');
+      t.className = 'toast ' + (type || 'i');
+      t.textContent = message;
+      c.appendChild(t);
+      setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, 2000);
+    }
+
+    /* --- markChanged(): 수정사항이 있음을 표시하는 함수 ---
+       "변경됨" 배지를 표시하고, "초기화"와 "ZIP 저장" 버튼을 활성화합니다.
+       이미지 교체, 텍스트 수정, 소스 영역 추가/삭제 등 모든 편집 동작 후 호출됩니다. */
+    function markChanged() {
+      document.getElementById('bdgChg').classList.add('show');
+      document.getElementById('btnReset').disabled = false;
+      document.getElementById('btnExp').disabled = false;
+    }
+
+    /* --- setDevice(btn, mode): 미리보기 디바이스 모드를 전환하는 함수 ---
+       'mo' = 모바일 (390px 너비), 'pc' = PC (900px 너비) */
+    function setDevice(btn, mode) {
+      document.getElementById('btnMO').classList.remove('active');
+      document.getElementById('btnPC').classList.remove('active');
+      btn.classList.add('active');
+      if (mode === 'pc') document.getElementById('phone').classList.add('pc-mode');
+      else document.getElementById('phone').classList.remove('pc-mode');
+    }
+
+    /* --- showLoading / hideLoading: 로딩 화면을 표시하거나 숨기는 함수 ---
+       ZIP 파싱이나 내보내기 등 시간이 걸리는 작업 중에 사용합니다. */
+    function showLoading(text, sub) {
+      document.getElementById('loadingScreen').classList.remove('hidden');
+      document.getElementById('loadingText').textContent = text || '처리 중...';
+      document.getElementById('loadingSub').textContent = sub || '';
+    }
+
+    function hideLoading() {
+      document.getElementById('loadingScreen').classList.add('hidden');
+    }
+
+    /* --- dataUrlToUint8Array(dataUrl): dataURL을 바이너리 배열로 변환하는 함수 ---
+       이미지를 ZIP 파일에 저장할 때 사용합니다.
+       dataURL (예: "data:image/jpeg;base64,...") → Uint8Array (바이너리 데이터) */
+    function dataUrlToUint8Array(dataUrl) {
+      var base64 = dataUrl.split(',')[1];
+      var binary = atob(base64);
+      var arr = new Uint8Array(binary.length);
+      for (var i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+      return arr;
+    }
+
+    /* --- escHtml(str): HTML 특수문자를 이스케이프하는 함수 ---
+       사용자 입력 텍스트를 HTML에 안전하게 삽입하기 위해 &, <, >, " 등을 변환합니다. */
+    function escHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    /* 디바이스 토글 */
+    document.getElementById('btnMO').addEventListener('click', function() { setDevice(this, 'mo'); });
+    document.getElementById('btnPC').addEventListener('click', function() { setDevice(this, 'pc'); });
+
+    /* ═══════════════════════════════════════════════════════
+       ZIP 업로드 이벤트 핸들러
+       설명: 사용자가 ZIP 파일을 선택하거나 드래그 앤 드롭할 때
+             실행되는 함수들입니다.
+             - 파일 선택 버튼 클릭 → onZipPick 실행
+             - 드래그 앤 드롭 → dzDrop 실행
+             두 경우 모두 .zip 확장자를 확인한 후 processZip을 호출합니다.
+       ═══════════════════════════════════════════════════════ */
+    /* --- onZipPick: 파일 선택 대화상자에서 파일을 선택했을 때 --- */
+    function onZipPick(event) {
+      var file = event.target.files[0];
+      if (!file) return;
+      if (!file.name.toLowerCase().endsWith('.zip')) { showToast('ZIP 파일만 지원됩니다','e'); return; }
+      showLoading('ZIP 파일을 불러오고 있습니다...', file.name);
+      processZip(file);
+    }
+    /* --- dzOver/dzLeave: 드래그 중 시각적 피드백 (테두리 색상 변경) --- */
+    function dzOver(e) { e.preventDefault(); document.getElementById('dropzone').classList.add('drag-over'); }
+    function dzLeave(e) { document.getElementById('dropzone').classList.remove('drag-over'); }
+    /* --- dzDrop: 파일을 드롭 영역에 놓았을 때 --- */
+    function dzDrop(e) {
+      e.preventDefault();
+      document.getElementById('dropzone').classList.remove('drag-over');
+      var file = e.dataTransfer.files[0];
+      if (!file) return;
+      if (!file.name.toLowerCase().endsWith('.zip')) { showToast('ZIP 파일만 지원됩니다','e'); return; }
+      showLoading('ZIP 파일을 불러오고 있습니다...', file.name);
+      processZip(file);
+    }
+    /* --- 드롭존과 파일 입력 요소에 이벤트 연결 --- */
+    (function() {
+      var dz = document.getElementById('dropzone');
+      var zi = document.getElementById('zipInput');
+      dz.addEventListener('click', function() { zi.click(); });
+      zi.addEventListener('change', onZipPick);
+      dz.addEventListener('dragover', dzOver);
+      dz.addEventListener('dragleave', dzLeave);
+      dz.addEventListener('drop', dzDrop);
+    })();
+
+    /* ═══════════════════════════════════════════════════════
+       processZip — ZIP 파일을 열어서 내부 파일들을 메모리에 저장하는 함수
+       설명: ZIP 파일을 받아서 다음 단계를 수행합니다:
+             1단계: ZIP 파일을 바이너리로 읽기 (ArrayBuffer)
+             2단계: JSZip 라이브러리로 ZIP 내부 파일 목록 추출
+             3단계: 중첩 폴더 감지 (예: html_999999sn/index.html → prefix 추출)
+             4단계: 각 파일을 유형별로 분류하여 저장
+                    - 이미지 → Blob URL로 변환하여 IMG_CACHE에 저장
+                    - 텍스트(html,css,js,json) → 문자열로 ZIP_FILES에 저장
+                    - 기타 바이너리 → Uint8Array로 ZIP_FILES에 저장
+             5단계: parseHTML() → buildEditor() 순서로 호출하여 미리보기 생성
+       ═══════════════════════════════════════════════════════ */
+    async function processZip(file) {
+      try {
+        showLoading('ZIP 파일을 분석하고 있습니다...', file.name);
+        var arrayBuffer = await file.arrayBuffer();
+        var zip = await JSZip.loadAsync(arrayBuffer);
+
+        ZIP_FILES={}; IMG_CACHE={}; MODIFIED={}; TEXT_MODS={}; TABS=[]; activeTabIdx=0;
+        SLIDES=[]; SLIDE_MODULES={}; LINK_OBJ=[]; EXT_IMAGES=[]; HTML_SRC=''; PREFIX='';
+        contentName=''; contentCode=''; TOP_IMAGES=[]; TAB_TOP_IMAGES=[];
+        DELETED_PATHS=[]; ADDED_IMAGES={}; IS_NO_TAB=false; NO_TAB_CONTENT='';
+
+        var indexPath = null;
+        zip.forEach(function(rp, entry) {
+          if (!entry.dir && rp.endsWith('index.html')) {
+            if (!indexPath || rp.length < indexPath.length) indexPath = rp;
+          }
+        });
+        if (!indexPath) { showToast('index.html 파일이 포함되어야 합니다','e'); hideLoading(); return; }
+        if (indexPath !== 'index.html') PREFIX = indexPath.replace('index.html','');
+
+        var imageExts = ['.jpg','.jpeg','.png','.gif','.webp','.svg'];
+        var textExts = ['.html','.css','.js','.json'];
+        var entries = [];
+        zip.forEach(function(rp, entry) { if (!entry.dir) entries.push({path:rp, entry:entry}); });
+        showLoading('파일을 처리하고 있습니다...', '총 ' + entries.length + '개 파일');
+
+        for (var i = 0; i < entries.length; i++) {
+          var rawPath = entries[i].path, entry = entries[i].entry;
+          var np = rawPath;
+          if (PREFIX && rawPath.startsWith(PREFIX)) np = rawPath.substring(PREFIX.length);
+          if (!np) continue;
+          var ext = '.' + np.split('.').pop().toLowerCase();
+          if (imageExts.indexOf(ext) !== -1) {
+            var data = await entry.async('arraybuffer');
+            var mimeMap = {'.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml'};
+            var blob = new Blob([data], {type: mimeMap[ext]||'image/jpeg'});
+            IMG_CACHE[np] = URL.createObjectURL(blob);
+            ZIP_FILES[np] = new Uint8Array(data);
+          } else if (textExts.indexOf(ext) !== -1) {
+            ZIP_FILES[np] = await entry.async('string');
+          } else {
+            ZIP_FILES[np] = await entry.async('uint8array');
+          }
+        }
+
+        HTML_SRC = ZIP_FILES['index.html'] || '';
+        document.getElementById('topbarHint').textContent = file.name;
+        parseHTML();
+        buildEditor();
+        document.getElementById('uploadScreen').classList.add('hidden');
+        document.getElementById('editorScreen').classList.remove('hidden');
+        hideLoading();
+        showToast('ZIP 파일이 성공적으로 로드되었습니다','s');
+      } catch(err) {
+        console.error('ZIP 파싱 오류:', err);
+        showToast('ZIP 파일이 손상되었거나 올바른 형식이 아닙니다','e');
+        hideLoading();
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       parseHTML — 업로드된 HTML의 구조를 분석하는 함수
+       설명: index.html 문자열을 DOM으로 파싱하여 다음 정보를 추출합니다:
+             - contentName, contentCode: <head> 스크립트에서 정규식으로 추출
+             - linkObj: 링크 데이터 배열 파싱
+             - 탭 구조: tab-btn-area, tab-btn, tab-area 클래스 기반 감지
+             - 슬라이드: swiper-mask 내부 이미지 경로 추출
+             - 외부 이미지: http/https URL 이미지 수집
+             탭이 있는 구조와 없는 구조를 자동으로 구분합니다.
+       ═══════════════════════════════════════════════════════ */
+    function parseHTML() {
+      try {
+        if (!HTML_SRC) return;
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(HTML_SRC, 'text/html');
+
+        /* contentName, contentCode 추출 */
+        var scripts = doc.querySelectorAll('head script');
+        var headScript = '';
+        for (var i = 0; i < scripts.length; i++) {
+          if (scripts[i].textContent.indexOf('contentName') !== -1 || scripts[i].textContent.indexOf('linkObj') !== -1) {
+            headScript = scripts[i].textContent; break;
+          }
+        }
+        var cnM = headScript.match(/const\s+contentName\s*=\s*["']([^"']*)["']/);
+        if (cnM) contentName = cnM[1];
+        var ccM = headScript.match(/const\s+contentCode\s*=\s*["']([^"']*)["']/);
+        if (ccM) contentCode = ccM[1];
+
+        /* linkObj 파싱 */
+        LINK_OBJ = [];
+        var loM = headScript.match(/const\s+linkObj\s*=\s*(\[[\s\S]*?\]);/);
+        if (loM) {
+          try {
+            var arrStr = loM[1].replace(/'/g,'"').replace(/,\s*}/g,'}').replace(/,\s*\]/g,']').replace(/(\w+)\s*:/g,'"$1":');
+            LINK_OBJ = JSON.parse(arrStr);
+          } catch(e) {
+            var itemRe = /\{\s*type\s*:\s*["']([^"']*)["']\s*,\s*url\s*:\s*["']([^"']*)["']\s*,\s*value\s*:\s*["']([^"']*)["']\s*,?\s*\}/g;
+            var m;
+            while ((m = itemRe.exec(loM[1])) !== null) LINK_OBJ.push({type:m[1], url:m[2].trim(), value:m[3]});
+          }
+        }
+
+        var eventBox = doc.querySelector('.eventBox');
+        if (!eventBox) return;
+
+        function normPath(src) { return src ? src.replace(/^\.\//g,'') : ''; }
+
+        /* 탭 구조 감지 */
+        var tabBtnArea = eventBox.querySelector('.tab-btn-area');
+        IS_NO_TAB = !tabBtnArea;
+
+        if (!IS_NO_TAB) {
+          /* 탭 유형 */
+          TAB_TYPE = tabBtnArea.classList.contains('swiper-tab') ? 'swiper-tab' : 'basic-tab';
+
+          /* 상단 이미지 (tab-btn-area 이전) */
+          TAB_TOP_IMAGES = [];
+          var ch = eventBox.children;
+          for (var c = 0; c < ch.length; c++) {
+            if (ch[c] === tabBtnArea) break;
+            if (ch[c].tagName === 'IMG') TAB_TOP_IMAGES.push({src:normPath(ch[c].getAttribute('src')), alt:ch[c].getAttribute('alt')||''});
+          }
+
+          /* 탭 버튼 + 탭 영역 */
+          var tabBtns = tabBtnArea.querySelectorAll('.tab-btn');
+          var tabAreas = eventBox.querySelectorAll('.tab-area');
+          TABS = []; SLIDE_MODULES = {};
+
+          for (var t = 0; t < tabBtns.length; t++) {
+            var btn = tabBtns[t];
+            var imgs = btn.querySelectorAll('img');
+            var offSrc = imgs.length > 0 ? normPath(imgs[0].getAttribute('src')) : '';
+            var onSrc = imgs.length > 1 ? normPath(imgs[1].getAttribute('src')) : '';
+            var tabName = btn.getAttribute('data-tab-name') || ('탭 ' + (t+1));
+            var rawContent = t < tabAreas.length ? tabAreas[t].innerHTML : '';
+
+            TABS.push({name:tabName, offImg:{src:offSrc,dataUrl:null,name:''}, onImg:{src:onSrc,dataUrl:null,name:''}, rawContent:rawContent});
+
+            /* 슬라이드 모듈 추출 */
+            if (t < tabAreas.length) {
+              var swiperMasks = tabAreas[t].querySelectorAll('.swiper-mask');
+              SLIDE_MODULES[t] = [];
+              for (var sm = 0; sm < swiperMasks.length; sm++) {
+                var slideImgs = swiperMasks[sm].querySelectorAll('.swiper-slide img');
+                var slides = [];
+                for (var si = 0; si < slideImgs.length; si++) slides.push({src:normPath(slideImgs[si].getAttribute('src')),dataUrl:null,name:''});
+                SLIDE_MODULES[t].push({posIdx:sm, isOriginal:true, slides:slides});
+              }
+            }
+          }
+        } else {
+          /* 탭 없는 구조 */
+          TOP_IMAGES = [];
+          var ebCh = eventBox.children;
+          for (var c = 0; c < ebCh.length; c++) {
+            if (ebCh[c].tagName === 'IMG') TOP_IMAGES.push({src:normPath(ebCh[c].getAttribute('src')), alt:ebCh[c].getAttribute('alt')||''});
+            else break;
+          }
+          var imgBox = eventBox.querySelector('.img-box');
+          NO_TAB_CONTENT = imgBox ? imgBox.innerHTML : '';
+          if (!imgBox) {
+            var parts = [];
+            var pastTop = false;
+            for (var c = 0; c < ebCh.length; c++) {
+              if (!pastTop && ebCh[c].tagName === 'IMG') continue;
+              pastTop = true;
+              parts.push(ebCh[c].outerHTML);
+            }
+            NO_TAB_CONTENT = parts.join('\n');
+          }
+          SLIDES = [];
+          var swiperMasks = eventBox.querySelectorAll('.swiper-mask');
+          for (var sm = 0; sm < swiperMasks.length; sm++) {
+            var slideImgs = swiperMasks[sm].querySelectorAll('.swiper-slide img');
+            for (var si = 0; si < slideImgs.length; si++) SLIDES.push({src:normPath(slideImgs[si].getAttribute('src')),dataUrl:null,name:''});
+          }
+        }
+
+        /* 외부 이미지 수집 */
+        EXT_IMAGES = [];
+        var allImgs = eventBox.querySelectorAll('img');
+        for (var i = 0; i < allImgs.length; i++) {
+          var src = allImgs[i].getAttribute('src') || '';
+          if (src.startsWith('http://') || src.startsWith('https://')) EXT_IMAGES.push({src:src,dataUrl:null,name:''});
+        }
+      } catch(err) { console.error('HTML 파싱 오류:', err); showToast('에디터 구성 오류','e'); }
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       buildEditor — 분석된 구조를 에디터 미리보기 화면에 그리는 함수
+       설명: parseHTML()에서 추출한 데이터를 기반으로 #phone 요소 안에
+             미리보기 DOM을 생성합니다.
+             - 탭 있는 구조: 상단 이미지 → 탭 버튼 → 탭 추가 바 → 각 탭 콘텐츠
+             - 탭 없는 구조: 상단 이미지 → 콘텐츠 영역
+             각 소스 영역에는 유형별 색상 테두리, 삭제/이동 버튼이 추가됩니다.
+       ═══════════════════════════════════════════════════════ */
+    function buildEditor() {
+      try {
+        var phone = document.getElementById('phone');
+        phone.innerHTML = '';
+        /* activeTabIdx를 리셋하지 않음 — 현재 보고 있는 탭을 유지 */
+        if (activeTabIdx >= TABS.length) activeTabIdx = 0;
+
+        if (!IS_NO_TAB && TABS.length > 0) {
+          /* 상단 이미지 */
+          for (var i = 0; i < TAB_TOP_IMAGES.length; i++) {
+            var ti = TAB_TOP_IMAGES[i];
+            var w = document.createElement('div');
+            w.className = 'ez ez-img'; w.setAttribute('data-path', ti.src);
+            w.innerHTML = '<span class="ez-ov">이미지</span><div class="ez-del-btn" onclick="deleteSourceArea(this.parentElement)">✕</div><div class="ez-move-btns"><div class="ez-move-btn" onclick="moveArea(this,\'up\')">▲</div><div class="ez-move-btn" onclick="moveArea(this,\'down\')">▼</div></div><img src="'+rImg(ti.src)+'" alt="'+escHtml(ti.alt)+'">';
+            (function(p,a){w.addEventListener('click',function(e){if(e.target.classList.contains('ez-del-btn')||e.target.classList.contains('ez-move-btn'))return;openImgFp(this,p,a);});})(ti.src,ti.alt);
+            phone.appendChild(w);
+            phone.appendChild(createInsertZone(null,-1));
+          }
+
+          /* 탭 버튼 영역 */
+          var tbw = document.createElement('div');
+          tbw.className = 'tab-btn-wrap'; tbw.id = 'tabBtnWrap';
+          var tw = 100/TABS.length;
+          for (var t = 0; t < TABS.length; t++) {
+            var tab = TABS[t];
+            var td = document.createElement('div');
+            td.className = 'tab-btn'; td.style.width = tw+'%'; td.setAttribute('data-tab-idx',t);
+            var imgSrc = (t===activeTabIdx) ? (tab.onImg.dataUrl||rImg(tab.onImg.src)) : (tab.offImg.dataUrl||rImg(tab.offImg.src));
+            td.innerHTML = '<img src="'+imgSrc+'" alt="'+escHtml(tab.name)+'"><div class="tab-del-btn" data-tab-idx="'+t+'">✕</div>';
+            (function(idx){
+              td.addEventListener('click',function(e){if(e.target.classList.contains('tab-del-btn')){deleteTab(idx);return;}switchTab(idx);});
+              td.addEventListener('dblclick',function(e){e.preventDefault();openTabMgr();});
+            })(t);
+            tbw.appendChild(td);
+          }
+          phone.appendChild(tbw);
+
+          /* 탭 추가 바 */
+          var ab = document.createElement('div');
+          ab.className = 'tab-add-bar'; ab.innerHTML = '＋ 탭 추가';
+          ab.addEventListener('click', addTab);
+          phone.appendChild(ab);
+
+          /* 탭 콘텐츠 영역 */
+          for (var t = 0; t < TABS.length; t++) {
+            var ad = document.createElement('div');
+            ad.className = 'tab-content-area'; ad.id = 'tabArea_'+t;
+            ad.style.display = (t===activeTabIdx)?'block':'none';
+            ad.innerHTML = buildTabAreaContent(t);
+            phone.appendChild(ad);
+          }
+        } else {
+          /* 탭 없는 구조 */
+          for (var i = 0; i < TOP_IMAGES.length; i++) {
+            var ti = TOP_IMAGES[i];
+            var w = document.createElement('div');
+            w.className = 'ez ez-img'; w.setAttribute('data-path', ti.src);
+            w.innerHTML = '<span class="ez-ov">이미지</span><div class="ez-del-btn" onclick="deleteSourceArea(this.parentElement)">✕</div><div class="ez-move-btns"><div class="ez-move-btn" onclick="moveArea(this,\'up\')">▲</div><div class="ez-move-btn" onclick="moveArea(this,\'down\')">▼</div></div><img src="'+rImg(ti.src)+'" alt="'+escHtml(ti.alt)+'">';
+            (function(p,a){w.addEventListener('click',function(e){if(e.target.classList.contains('ez-del-btn')||e.target.classList.contains('ez-move-btn'))return;openImgFp(this,p,a);});})(ti.src,ti.alt);
+            phone.appendChild(w);
+            phone.appendChild(createInsertZone(null,-1));
+          }
+          var cd = document.createElement('div');
+          cd.id = 'noTabContent';
+          cd.innerHTML = buildAreaContent(true);
+          phone.appendChild(cd);
+        }
+      } catch(err) { console.error('빌더 오류:', err); showToast('에디터 구성 오류','e'); }
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       buildTabAreaContent — 탭 내부 콘텐츠를 그리는 함수
+       설명: 특정 탭(tabIdx)의 rawContent를 분석하여 에디터용 HTML을 생성합니다.
+             - 이미지 블록 → ez-img 클래스 (보라색 호버)
+             - 링크 블록 → ez-link 클래스 (분홍색 호버)
+             - 슬라이드 블록 → buildSlideViewport() 호출
+             - 빈 탭 → 플레이스홀더 이미지 블록 자동 생성
+             각 콘텐츠 영역 하단에 삽입 존(이미지/슬라이드 추가 버튼)을 배치합니다.
+       ═══════════════════════════════════════════════════════ */
+    function buildTabAreaContent(tabIdx) {
+      try {
+        var tab = TABS[tabIdx];
+        if (!tab || !tab.rawContent) {
+          /* 빈 탭 — 기본 이미지 플레이스홀더 표시 */
+          var placeholderPath = 'images/added_placeholder_' + tabIdx + '.jpg';
+          return '<div class="ez ez-img" data-path="' + placeholderPath + '" data-placeholder="true" onclick="handleEzClick(event,this)"><span class="ez-ov">이미지</span><div class="ez-del-btn" onclick="deleteSourceArea(this.parentElement)">✕</div><div class="ez-move-btns"><div class="ez-move-btn" onclick="moveArea(this,\'up\')">▲</div><div class="ez-move-btn" onclick="moveArea(this,\'down\')">▼</div></div><div style="min-height:120px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;color:#999;font-size:14px;border:2px dashed #ccc;border-radius:8px;margin:4px;">📷 이미지를 클릭하여 업로드하세요</div><img src="" alt="" style="display:none;"></div>' + createInsertZoneHtml(tabIdx, 1);
+        }
+        var tempDiv = document.createElement('div');
+        tempDiv.innerHTML = tab.rawContent;
+        var html = '', slideModIdx = 0, areaIdx = 0;
+        function np(s) { return s ? s.replace(/^\.\//g,'') : ''; }
+
+        var nodes = tempDiv.childNodes;
+        for (var n = 0; n < nodes.length; n++) {
+          var nd = nodes[n];
+          if (nd.nodeType !== 1) continue;
+
+          /* Bug1: 아이템 사이 삽입 존 제거 — 마지막에만 추가 */
+
+          if (nd.classList && nd.classList.contains('swiper-mask')) {
+            var modules = SLIDE_MODULES[tabIdx] || [];
+            var mod = modules[slideModIdx];
+            if (mod && mod.slides.length > 0) html += buildSlideViewport(mod.slides, tabIdx, slideModIdx);
+            slideModIdx++; areaIdx++;
+          } else if (nd.tagName === 'A' && nd.classList && nd.classList.contains('link-btn')) {
+            var order = parseInt(nd.getAttribute('data-order')||'0');
+            var lImg = nd.querySelector('img');
+            var lSrc = lImg ? np(lImg.getAttribute('src')) : '';
+            var lAlt = lImg ? (lImg.getAttribute('alt')||'') : '';
+            html += '<div class="ez ez-link" data-path="'+lSrc+'" data-link-idx="'+order+'" onclick="handleEzClick(event,this)"><span class="ez-ov">링크</span><div class="ez-del-btn" onclick="deleteSourceArea(this.parentElement)">✕</div><div class="ez-move-btns"><div class="ez-move-btn" onclick="moveArea(this,\'up\')">▲</div><div class="ez-move-btn" onclick="moveArea(this,\'down\')">▼</div></div><img src="'+rImg(lSrc)+'" alt="'+escHtml(lAlt)+'"></div>';
+            areaIdx++;
+          } else if (nd.tagName === 'IMG') {
+            var src = np(nd.getAttribute('src'));
+            var alt = nd.getAttribute('alt') || '';
+            var isExt = src.startsWith('http://') || src.startsWith('https://');
+            if (isExt) {
+              html += '<div class="ext-img-section ez" data-path="'+src+'" onclick="handleEzClick(event,this)"><img src="'+src+'" alt="'+escHtml(alt)+'"></div>';
+            } else {
+              html += '<div class="ez ez-img" data-path="'+src+'" onclick="handleEzClick(event,this)"><span class="ez-ov">이미지</span><div class="ez-del-btn" onclick="deleteSourceArea(this.parentElement)">✕</div><div class="ez-move-btns"><div class="ez-move-btn" onclick="moveArea(this,\'up\')">▲</div><div class="ez-move-btn" onclick="moveArea(this,\'down\')">▼</div></div><img src="'+rImg(src)+'" alt="'+escHtml(alt)+'"></div>';
+            }
+            areaIdx++;
+          } else if (nd.tagName === 'DIV' || nd.tagName === 'SPAN') {
+            var innerSwiper = nd.querySelectorAll('.swiper-mask');
+            var innerLinks = nd.querySelectorAll('a.link-btn');
+
+            if (innerSwiper.length > 0) {
+              /* 슬라이드 포함 div */
+              var dImgs = nd.querySelectorAll(':scope > img');
+              for (var di = 0; di < dImgs.length; di++) {
+                var diSrc = np(dImgs[di].getAttribute('src'));
+                var diAlt = dImgs[di].getAttribute('alt')||'';
+                html += '<div class="ez ez-img" data-path="'+diSrc+'" onclick="handleEzClick(event,this)"><span class="ez-ov">이미지</span><div class="ez-del-btn" onclick="deleteSourceArea(this.parentElement)">✕</div><div class="ez-move-btns"><div class="ez-move-btn" onclick="moveArea(this,\'up\')">▲</div><div class="ez-move-btn" onclick="moveArea(this,\'down\')">▼</div></div><img src="'+rImg(diSrc)+'" alt="'+escHtml(diAlt)+'"></div>';
+                areaIdx++;
+              }
+              for (var sw = 0; sw < innerSwiper.length; sw++) {
+                var modules = SLIDE_MODULES[tabIdx] || [];
+                var mod = modules[slideModIdx];
+                if (mod && mod.slides.length > 0) {
+                  html += buildSlideViewport(mod.slides, tabIdx, slideModIdx);
+                  areaIdx++;
+                }
+                slideModIdx++;
+              }
+            } else if (innerLinks.length > 0) {
+              /* 링크 포함 div */
+              var dCh = nd.childNodes;
+              for (var dc = 0; dc < dCh.length; dc++) {
+                var dC = dCh[dc];
+                if (dC.nodeType !== 1) continue;
+                if (dC.tagName === 'A' && dC.classList && dC.classList.contains('link-btn')) {
+                  var order = parseInt(dC.getAttribute('data-order')||'0');
+                  var lI = dC.querySelector('img');
+                  var lS = lI ? np(lI.getAttribute('src')) : '';
+                  var lA = lI ? (lI.getAttribute('alt')||'') : '';
+                  html += '<div class="ez ez-link" data-path="'+lS+'" data-link-idx="'+order+'" onclick="handleEzClick(event,this)"><span class="ez-ov">링크</span><div class="ez-del-btn" onclick="deleteSourceArea(this.parentElement)">✕</div><div class="ez-move-btns"><div class="ez-move-btn" onclick="moveArea(this,\'up\')">▲</div><div class="ez-move-btn" onclick="moveArea(this,\'down\')">▼</div></div><img src="'+rImg(lS)+'" alt="'+escHtml(lA)+'"></div>';
+                  areaIdx++;
+                } else if (dC.tagName === 'IMG') {
+                  var dS = np(dC.getAttribute('src'));
+                  var dA = dC.getAttribute('alt')||'';
+                  html += '<div class="ez ez-img" data-path="'+dS+'" onclick="handleEzClick(event,this)"><span class="ez-ov">이미지</span><div class="ez-del-btn" onclick="deleteSourceArea(this.parentElement)">✕</div><div class="ez-move-btns"><div class="ez-move-btn" onclick="moveArea(this,\'up\')">▲</div><div class="ez-move-btn" onclick="moveArea(this,\'down\')">▼</div></div><img src="'+rImg(dS)+'" alt="'+escHtml(dA)+'"></div>';
+                  areaIdx++;
+                }
+              }
+            } else {
+              /* 일반 div — 내부 이미지 처리 */
+              var iImgs = nd.querySelectorAll('img');
+              for (var ii = 0; ii < iImgs.length; ii++) {
+                var iS = np(iImgs[ii].getAttribute('src'));
+                var iA = iImgs[ii].getAttribute('alt')||'';
+                html += '<div class="ez ez-img" data-path="'+iS+'" onclick="handleEzClick(event,this)"><span class="ez-ov">이미지</span><div class="ez-del-btn" onclick="deleteSourceArea(this.parentElement)">✕</div><div class="ez-move-btns"><div class="ez-move-btn" onclick="moveArea(this,\'up\')">▲</div><div class="ez-move-btn" onclick="moveArea(this,\'down\')">▼</div></div><img src="'+rImg(iS)+'" alt="'+escHtml(iA)+'"></div>';
+                areaIdx++;
+              }
+            }
+          }
+        }
+        /* 에디터에서 추가한 슬라이드 모듈 (isOriginal:false) 렌더링 */
+        var modules = SLIDE_MODULES[tabIdx] || [];
+        for (var mi = slideModIdx; mi < modules.length; mi++) {
+          if (!modules[mi].isOriginal && modules[mi].slides.length > 0) {
+            html += buildSlideViewport(modules[mi].slides, tabIdx, mi);
+            areaIdx++;
+          }
+        }
+        html += createInsertZoneHtml(tabIdx, areaIdx);
+        return html;
+      } catch(err) { console.error('탭 콘텐츠 빌드 오류:', err); return ''; }
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       buildAreaContent — 탭이 없는 구조의 콘텐츠를 그리는 함수
+       설명: 탭이 없는 HTML 구조(이미지 + 슬라이드만 있는 구조)의
+             콘텐츠를 에디터용 HTML로 변환합니다.
+             buildTabAreaContent와 유사하지만 탭 인덱스 없이 동작합니다.
+       ═══════════════════════════════════════════════════════ */
+    function buildAreaContent(isNoTab) {
+      try {
+        var raw = NO_TAB_CONTENT;
+        if (!raw) return '';
+        var tempDiv = document.createElement('div');
+        tempDiv.innerHTML = raw;
+        var html = '', areaIdx = 0;
+        function np(s) { return s ? s.replace(/^\.\//g,'') : ''; }
+
+        var nodes = tempDiv.childNodes;
+        for (var n = 0; n < nodes.length; n++) {
+          var nd = nodes[n];
+          if (nd.nodeType !== 1) continue;
+
+          /* Bug1: 아이템 사이 삽입 존 제거 — 마지막에만 추가 */
+
+          if (nd.classList && nd.classList.contains('swiper-mask')) {
+            if (SLIDES.length > 0) html += buildSlideViewport(SLIDES, null, 0);
+            areaIdx++;
+          } else if (nd.tagName === 'IMG') {
+            var src = np(nd.getAttribute('src'));
+            var alt = nd.getAttribute('alt')||'';
+            var isExt = src.startsWith('http://') || src.startsWith('https://');
+            if (isExt) {
+              html += '<div class="ext-img-section ez" data-path="'+src+'" onclick="handleEzClick(event,this)"><img src="'+src+'" alt="'+escHtml(alt)+'"></div>';
+            } else {
+              html += '<div class="ez ez-img" data-path="'+src+'" onclick="handleEzClick(event,this)"><span class="ez-ov">이미지</span><div class="ez-del-btn" onclick="deleteSourceArea(this.parentElement)">✕</div><div class="ez-move-btns"><div class="ez-move-btn" onclick="moveArea(this,\'up\')">▲</div><div class="ez-move-btn" onclick="moveArea(this,\'down\')">▼</div></div><img src="'+rImg(src)+'" alt="'+escHtml(alt)+'"></div>';
+            }
+            areaIdx++;
+          } else if (nd.tagName === 'DIV') {
+            var innerSwiper = nd.querySelectorAll('.swiper-mask');
+            if (innerSwiper.length > 0) {
+              var dCh = nd.childNodes;
+              for (var dc = 0; dc < dCh.length; dc++) {
+                if (dCh[dc].nodeType === 1 && dCh[dc].tagName === 'IMG') {
+                  var diSrc = np(dCh[dc].getAttribute('src'));
+                  var diAlt = dCh[dc].getAttribute('alt')||'';
+                  html += '<div class="ez ez-img" data-path="'+diSrc+'" onclick="handleEzClick(event,this)"><span class="ez-ov">이미지</span><div class="ez-del-btn" onclick="deleteSourceArea(this.parentElement)">✕</div><div class="ez-move-btns"><div class="ez-move-btn" onclick="moveArea(this,\'up\')">▲</div><div class="ez-move-btn" onclick="moveArea(this,\'down\')">▼</div></div><img src="'+rImg(diSrc)+'" alt="'+escHtml(diAlt)+'"></div>';
+                  areaIdx++;
+                }
+              }
+              if (SLIDES.length > 0) {
+                html += buildSlideViewport(SLIDES, null, 0);
+                areaIdx++;
+              }
+            } else {
+              var imgs = nd.querySelectorAll('img');
+              for (var ii = 0; ii < imgs.length; ii++) {
+                var iS = np(imgs[ii].getAttribute('src'));
+                var iA = imgs[ii].getAttribute('alt')||'';
+                html += '<div class="ez ez-img" data-path="'+iS+'" onclick="handleEzClick(event,this)"><span class="ez-ov">이미지</span><div class="ez-del-btn" onclick="deleteSourceArea(this.parentElement)">✕</div><div class="ez-move-btns"><div class="ez-move-btn" onclick="moveArea(this,\'up\')">▲</div><div class="ez-move-btn" onclick="moveArea(this,\'down\')">▼</div></div><img src="'+rImg(iS)+'" alt="'+escHtml(iA)+'"></div>';
+                areaIdx++;
+              }
+            }
+          }
+        }
+        html += createInsertZoneHtml(null, areaIdx);
+        return html;
+      } catch(err) { console.error('콘텐츠 빌드 오류:', err); return ''; }
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       슬라이드 뷰포트 + 네비게이션 + 탭 전환 + 삽입 존
+       설명: 슬라이드 관련 렌더링과 상호작용 함수들입니다.
+       ═══════════════════════════════════════════════════════ */
+
+    /* --- buildSlideViewport: 슬라이드 영역을 그리는 함수 ---
+       원본 슬라이드(ZIP에서 가져온 것)와 에디터에서 추가한 슬라이드를 구분합니다:
+       - 원본 슬라이드 (isOriginal=true): 좌우 넘기기 형태 (swiper 뷰포트)
+         → 좌/우 화살표 버튼과 하단 도트 인디케이터로 탐색
+         → 내보내기 시 swiper-mask 구조로 출력
+       - 추가 슬라이드 (isOriginal=false): 블록형 (이미지가 세로로 쌓임)
+         → 모든 이미지가 한 번에 보임
+         → 내보내기 시 개별 <img> 태그로 출력 */
+    function buildSlideViewport(slides, tabIdx, moduleIdx) {
+      /* 원본 슬라이드인지 새로 추가한 슬라이드인지 확인 */
+      var isOriginal = true;
+      if (tabIdx !== null && tabIdx !== 'null') {
+        var ti = parseInt(tabIdx), mi = parseInt(moduleIdx);
+        if (SLIDE_MODULES[ti] && SLIDE_MODULES[ti][mi]) isOriginal = SLIDE_MODULES[ti][mi].isOriginal;
+      } else {
+        /* 탭 없는 구조에서 새로 추가된 슬라이드 판별 */
+        for (var si = 0; si < slides.length; si++) {
+          if (!slides[si].src && slides[si].dataUrl) { isOriginal = false; break; }
+          if (slides[si].name === '새 슬라이드' && !slides[si].src) { isOriginal = false; break; }
+        }
+      }
+
+      /* 모든 슬라이드를 좌우 넘기기(swiper) 형태로 렌더링 */
+      var vpId = 'svp_'+(tabIdx!==null?tabIdx:'n')+'_'+moduleIdx;
+      var h = '<div class="inline-slide-module ez ez-slide-item" data-tab-idx="'+tabIdx+'" data-module-idx="'+moduleIdx+'" data-block-slide="false">';
+      h += '<div class="slide-module-hd"><span>🎠 슬라이드 ('+slides.length+'장)</span><span class="slide-module-manage" onclick="openSlidePanel('+tabIdx+','+moduleIdx+')">관리</span></div>';
+      h += '<span class="ez-ov">슬라이드</span>';
+      h += '<div class="ez-del-btn" onclick="deleteSourceArea(this.parentElement)">✕</div>';
+      h += '<div class="ez-move-btns"><div class="ez-move-btn" onclick="moveArea(this,\'up\')">▲</div><div class="ez-move-btn" onclick="moveArea(this,\'down\')">▼</div></div>';
+      h += '<div class="slide-vp" id="'+vpId+'"><div class="slide-track">';
+      for (var s = 0; s < slides.length; s++) {
+        var src = slides[s].dataUrl || rImg(slides[s].src);
+        h += '<div class="slide-item-wrap"><img src="'+src+'" alt="슬라이드 '+(s+1)+'"></div>';
+      }
+      h += '</div>';
+      if (slides.length > 1) {
+        h += '<button class="slide-nav prev" onclick="slideNav(\''+vpId+'\',-1)">◀</button>';
+        h += '<button class="slide-nav next" onclick="slideNav(\''+vpId+'\',1)">▶</button>';
+      }
+      h += '</div>';
+      if (slides.length > 1) {
+        h += '<div class="slide-dots" data-vp="'+vpId+'">';
+        for (var s = 0; s < slides.length; s++) h += '<span class="slide-dot'+(s===0?' active':'')+'" onclick="slideTo(\''+vpId+'\','+s+')"></span>';
+        h += '</div>';
+      }
+      h += '</div>';
+      return h;
+    }
+
+    /* --- slideNav: 슬라이드 좌우 네비게이션 버튼 클릭 시 실행 ---
+       dir=-1이면 이전 슬라이드, dir=1이면 다음 슬라이드로 이동합니다.
+       마지막 슬라이드에서 다음을 누르면 첫 번째로 돌아갑니다 (순환). */
+    function slideNav(vpId, dir) {
+      try {
+        var vp = document.getElementById(vpId); if (!vp) return;
+        var track = vp.querySelector('.slide-track');
+        var items = track.querySelectorAll('.slide-item-wrap');
+        if (!items.length) return;
+        var cur = slideCurrentIdx[vpId] || 0;
+        cur += dir;
+        if (cur < 0) cur = items.length - 1;
+        if (cur >= items.length) cur = 0;
+        slideCurrentIdx[vpId] = cur;
+        track.style.transform = 'translateX(-'+(cur*100)+'%)';
+        updateSlideDots(vpId, cur);
+      } catch(e) {}
+    }
+
+    /* --- slideTo: 특정 슬라이드로 직접 이동 (도트 클릭 시) --- */
+    function slideTo(vpId, idx) {
+      try {
+        var vp = document.getElementById(vpId); if (!vp) return;
+        var track = vp.querySelector('.slide-track');
+        slideCurrentIdx[vpId] = idx;
+        track.style.transform = 'translateX(-'+(idx*100)+'%)';
+        updateSlideDots(vpId, idx);
+      } catch(e) {}
+    }
+
+    /* --- updateSlideDots: 현재 슬라이드에 해당하는 도트를 활성화 --- */
+    function updateSlideDots(vpId, activeIdx) {
+      var dc = document.querySelector('.slide-dots[data-vp="'+vpId+'"]');
+      if (!dc) return;
+      var dots = dc.querySelectorAll('.slide-dot');
+      for (var d = 0; d < dots.length; d++) dots[d].classList.toggle('active', d === activeIdx);
+    }
+
+    /* --- switchTab: 탭 전환 함수 ---
+       탭 버튼 클릭 시 해당 탭을 활성화하고, 다른 탭의 콘텐츠를 숨깁니다.
+       활성 탭은 ON 이미지, 비활성 탭은 OFF 이미지로 표시됩니다. */
+    function switchTab(idx) {
+      try {
+        activeTabIdx = idx;
+        var tbw = document.getElementById('tabBtnWrap');
+        if (tbw) {
+          var btns = tbw.querySelectorAll('.tab-btn');
+          for (var b = 0; b < btns.length; b++) {
+            var tab = TABS[b]; if (!tab) continue;
+            var img = btns[b].querySelector('img');
+            if (img) img.src = (b===idx) ? (tab.onImg.dataUrl||rImg(tab.onImg.src)) : (tab.offImg.dataUrl||rImg(tab.offImg.src));
+          }
+        }
+        for (var t = 0; t < TABS.length; t++) {
+          var area = document.getElementById('tabArea_'+t);
+          if (area) area.style.display = (t===idx)?'block':'none';
+        }
+      } catch(e) {}
+    }
+
+    /* --- createInsertZoneHtml / createInsertZone: 삽입 존 생성 함수 ---
+       각 콘텐츠 영역 하단에 "이미지 추가" / "슬라이드 추가" 버튼을 배치합니다.
+       (구현 변경: 모든 아이템 사이가 아닌, 하단에만 1개 배치) */
+    function createInsertZoneHtml(tabIdx, pos) {
+      return '<div class="insert-slide-zone"><span class="insert-btn img-insert" onclick="insertImage('+tabIdx+','+pos+')">＋ 이미지</span><span class="insert-btn slide-insert" onclick="insertSlide('+tabIdx+','+pos+')">＋ 슬라이드</span></div>';
+    }
+
+    function createInsertZone(tabIdx, pos) {
+      var z = document.createElement('div');
+      z.className = 'insert-slide-zone';
+      z.innerHTML = '<span class="insert-btn img-insert" onclick="insertImage('+tabIdx+','+pos+')">＋ 이미지</span><span class="insert-btn slide-insert" onclick="insertSlide('+tabIdx+','+pos+')">＋ 슬라이드</span>';
+      return z;
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       클릭 핸들러 + 이미지/링크 편집 패널
+       설명: 미리보기 내 소스 영역을 클릭했을 때의 동작을 처리합니다.
+             - 이미지 블록 클릭 → openImgFp (이미지 편집 패널 열기)
+             - 링크 블록 클릭 → openLinkFp (링크 편집 패널 열기)
+             삭제/이동/슬라이드 관리 버튼 클릭은 별도 처리됩니다.
+       ═══════════════════════════════════════════════════════ */
+
+    /* --- handleEzClick: 편집 영역 클릭 시 유형에 따라 적절한 패널을 여는 함수 --- */
+    function handleEzClick(event, el) {
+      try {
+        if (event.target.classList.contains('ez-del-btn')||event.target.classList.contains('ez-move-btn')||event.target.classList.contains('slide-module-manage')||event.target.classList.contains('slide-nav')||event.target.classList.contains('slide-dot')||event.target.classList.contains('insert-btn')) return;
+        event.stopPropagation();
+        var path = el.getAttribute('data-path')||'';
+        if (el.classList.contains('ez-link')) {
+          openLinkFp(el, parseInt(el.getAttribute('data-link-idx')||'0'), path);
+        } else if (el.classList.contains('ez-img') || el.classList.contains('ext-img-section')) {
+          var imgEl = el.querySelector('img');
+          openImgFp(el, path, imgEl?(imgEl.getAttribute('alt')||''):'');
+        }
+      } catch(e) {}
+    }
+
+    /* 플로팅 패널 상태 저장 객체 */
+    var fpState = {element:null, path:'', newDataUrl:null, newFileName:'', isLink:false, linkIdx:-1};
+
+    /* --- openImgFp: 이미지 편집 패널을 여는 함수 ---
+       클릭한 이미지 블록 근처에 플로팅 패널을 표시합니다.
+       이미지 업로드, alt 텍스트 수정이 가능합니다. */
+    function openImgFp(element, path, altText) {
+      try {
+        fpState = {element:element, path:path, newDataUrl:null, newFileName:'', isLink:false, linkIdx:-1};
+        document.getElementById('fpTitle').textContent = '이미지 편집';
+        document.getElementById('fpLinkTypeField').style.display = 'none';
+        document.getElementById('fpLinkUrlField').style.display = 'none';
+        document.getElementById('fpLinkValueField').style.display = 'none';
+        document.getElementById('fpAlt').value = altText||'';
+        document.getElementById('fpUpload').style.display = 'block';
+        document.getElementById('fpPreview').classList.remove('show');
+        positionFp(element);
+        document.getElementById('floatingPanel').classList.add('show');
+      } catch(e) {}
+    }
+
+    /* --- openLinkFp: 링크 편집 패널을 여는 함수 ---
+       클릭한 링크 블록 근처에 플로팅 패널을 표시합니다.
+       링크 유형(BrowserOpen, shopping 등), URL, 버튼명, 이미지 교체가 가능합니다. */
+    function openLinkFp(element, linkIdx, imgPath) {
+      try {
+        fpState = {element:element, path:imgPath, newDataUrl:null, newFileName:'', isLink:true, linkIdx:linkIdx};
+        document.getElementById('fpTitle').textContent = '링크 편집';
+        document.getElementById('fpLinkTypeField').style.display = 'block';
+        document.getElementById('fpLinkUrlField').style.display = 'block';
+        document.getElementById('fpLinkValueField').style.display = 'block';
+        var ld = LINK_OBJ[linkIdx] || {type:'BrowserOpen',url:'',value:''};
+        document.getElementById('fpLinkType').value = ld.type||'BrowserOpen';
+        document.getElementById('fpLinkUrl').value = ld.url||'';
+        document.getElementById('fpLinkValue').value = ld.value||'';
+        var imgEl = element.querySelector('img');
+        document.getElementById('fpAlt').value = imgEl?(imgEl.getAttribute('alt')||''):'';
+        document.getElementById('fpUpload').style.display = 'block';
+        document.getElementById('fpPreview').classList.remove('show');
+        positionFp(element);
+        document.getElementById('floatingPanel').classList.add('show');
+      } catch(e) {}
+    }
+
+    /* --- positionFp: 플로팅 패널의 위치를 클릭한 요소 근처로 계산하는 함수 ---
+       화면 밖으로 나가지 않도록 위치를 자동 조정합니다. */
+    function positionFp(el) {
+      var fp = document.getElementById('floatingPanel');
+      var r = el.getBoundingClientRect();
+      var left = r.right+10, top = r.top;
+      if (left+340 > window.innerWidth) left = r.left-350;
+      if (left < 0) left = 10;
+      if (top+400 > window.innerHeight) top = window.innerHeight-420;
+      if (top < 60) top = 60;
+      fp.style.left = left+'px'; fp.style.top = top+'px';
+    }
+
+    /* --- closeFp: 플로팅 패널을 닫는 함수 --- */
+    function closeFp() {
+      document.getElementById('floatingPanel').classList.remove('show');
+      fpState = {element:null,path:'',newDataUrl:null,newFileName:'',isLink:false,linkIdx:-1};
+    }
+
+    /* --- 플로팅 패널 이벤트 연결 ---
+       닫기, 취소, 이미지 업로드, 확인 버튼의 동작을 설정합니다.
+       확인 클릭 시: 이미지 교체 → MODIFIED에 저장 → 미리보기 갱신 → markChanged() */
+    (function(){
+      document.getElementById('fpClose').addEventListener('click', closeFp);
+      document.getElementById('fpCancel').addEventListener('click', closeFp);
+      document.getElementById('fpUpload').addEventListener('click', function(){ document.getElementById('fpFileInput').click(); });
+      document.getElementById('fpPreviewChange').addEventListener('click', function(){ document.getElementById('fpFileInput').click(); });
+      /* 이미지 파일 선택 시: FileReader로 dataURL 변환 → 미리보기 표시 */
+      document.getElementById('fpFileInput').addEventListener('change', function(e){
+        var file = e.target.files[0]; if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function(ev){
+          fpState.newDataUrl = ev.target.result; fpState.newFileName = file.name;
+          document.getElementById('fpPreviewImg').src = ev.target.result;
+          document.getElementById('fpPreviewName').textContent = file.name;
+          document.getElementById('fpUpload').style.display = 'none';
+          document.getElementById('fpPreview').classList.add('show');
+        };
+        reader.readAsDataURL(file); e.target.value = '';
+      });
+      document.getElementById('fpConfirm').addEventListener('click', function(){
+        try {
+          var el = fpState.element; if (!el) { closeFp(); return; }
+          if (fpState.newDataUrl && fpState.path) {
+            MODIFIED[fpState.path] = fpState.newDataUrl;
+            ADDED_IMAGES[fpState.path] = fpState.newDataUrl;
+            var img = el.querySelector('img');
+            if (img) { img.src = fpState.newDataUrl; img.style.display = 'block'; }
+            /* 플레이스홀더 안내 div 숨기기 */
+            if (el.getAttribute('data-placeholder') === 'true') {
+              var placeholderDiv = el.querySelector('div[style*="min-height"]');
+              if (placeholderDiv) placeholderDiv.style.display = 'none';
+              el.removeAttribute('data-placeholder');
+            }
+            /* 플레이스홀더 이미지인 경우: 해당 탭의 rawContent에 이미지 추가 */
+            if (fpState.path.indexOf('added_placeholder_') !== -1) {
+              var tabArea = el.closest('.tab-content-area');
+              if (tabArea) {
+                var tIdx = parseInt(tabArea.id.replace('tabArea_',''));
+                if (TABS[tIdx] !== undefined) {
+                  TABS[tIdx].rawContent = '<img src="./'+fpState.path+'" alt="'+(fpState.newFileName||'')+'" />';
+                }
+              }
+            }
+          }
+          var altVal = document.getElementById('fpAlt').value;
+          var img = el.querySelector('img'); if (img) img.setAttribute('alt', altVal);
+          if (fpState.isLink && fpState.linkIdx >= 0) {
+            if (!LINK_OBJ[fpState.linkIdx]) LINK_OBJ[fpState.linkIdx] = {type:'',url:'',value:''};
+            LINK_OBJ[fpState.linkIdx].type = document.getElementById('fpLinkType').value;
+            LINK_OBJ[fpState.linkIdx].url = document.getElementById('fpLinkUrl').value;
+            LINK_OBJ[fpState.linkIdx].value = document.getElementById('fpLinkValue').value;
+          }
+          markChanged(); closeFp(); showToast('변경 사항이 적용되었습니다','s');
+        } catch(e) { showToast('변경 적용 중 오류가 발생했습니다','e'); }
+      });
+    })();
+
+    /* ═══════════════════════════════════════════════════════
+       슬라이드 사이드 패널
+       설명: 슬라이드를 관리하는 오른쪽 사이드 패널입니다.
+             - openSlidePanel: 슬라이드 관리 패널을 여는 함수
+             - renderSlideList: 슬라이드 목록을 화면에 그리는 함수
+             - deleteSlide: 슬라이드를 삭제하는 함수 (최소 1개 유지)
+             슬라이드 이미지 클릭 시 교체, 추가 버튼으로 새 슬라이드 추가 가능.
+       ═══════════════════════════════════════════════════════ */
+    var spState = {tabIdx:null, moduleIdx:0, slides:null}; /* 사이드 패널 상태 */
+
+    /* --- openSlidePanel: 슬라이드 관리 패널을 여는 함수 ---
+       탭 있는 구조: SLIDE_MODULES[tabIdx][moduleIdx]의 슬라이드 목록 표시
+       탭 없는 구조: SLIDES 배열의 슬라이드 목록 표시 */
+
+    function openSlidePanel(tabIdx, moduleIdx) {
+      try {
+        spState.tabIdx = tabIdx; spState.moduleIdx = moduleIdx;
+        if (tabIdx !== null && tabIdx !== 'null') {
+          var ti = parseInt(tabIdx), mi = parseInt(moduleIdx);
+          spState.slides = (SLIDE_MODULES[ti] && SLIDE_MODULES[ti][mi]) ? SLIDE_MODULES[ti][mi].slides : [];
+        } else { spState.slides = SLIDES; }
+        renderSlideList(); openSp();
+      } catch(e) {}
+    }
+
+    /* --- openSp / closeSp: 사이드 패널 열기/닫기 ---
+       closeSp는 패널을 닫은 후 buildEditor()를 호출하여 미리보기를 갱신합니다. */
+    function openSp() {
+      document.getElementById('spBackdrop').classList.add('show');
+      document.getElementById('sidePanel').classList.add('show');
+    }
+
+    function closeSp() {
+      document.getElementById('spBackdrop').classList.remove('show');
+      document.getElementById('sidePanel').classList.remove('show');
+      buildEditor();
+    }
+
+    /* --- renderSlideList: 사이드 패널에 슬라이드 목록을 그리는 함수 ---
+       각 슬라이드: 번호 + 미리보기 이미지(클릭하면 교체) + 파일명 + 삭제 버튼 */
+    function renderSlideList() {
+      var list = document.getElementById('spSlideList');
+      list.innerHTML = '';
+      var slides = spState.slides; if (!slides) return;
+      for (var i = 0; i < slides.length; i++) {
+        var sl = slides[i], src = sl.dataUrl || rImg(sl.src);
+        var item = document.createElement('div');
+        item.className = 'sp-slide-item';
+        item.innerHTML = '<div class="sp-slide-num">'+(i+1)+'</div><img class="sp-slide-thumb" src="'+src+'" alt="슬라이드 '+(i+1)+'"><span class="sp-slide-info">'+(sl.name||sl.src||'새 슬라이드')+'</span><div class="sp-slide-del" data-idx="'+i+'">🗑</div>';
+        (function(idx){
+          item.querySelector('.sp-slide-thumb').addEventListener('click',function(){
+            document.getElementById('spFileInput').setAttribute('data-slide-idx',idx);
+            document.getElementById('spFileInput').click();
+          });
+          item.querySelector('.sp-slide-del').addEventListener('click',function(){ deleteSlide(idx); });
+        })(i);
+        list.appendChild(item);
+      }
+    }
+
+    /* --- deleteSlide: 슬라이드를 삭제하는 함수 ---
+       슬라이드가 1개만 남으면 삭제를 차단하고 오류 메시지를 표시합니다. */
+    function deleteSlide(idx) {
+      try {
+        var slides = spState.slides; if (!slides) return;
+        if (slides.length <= 1) { showToast('최소 1개의 슬라이드가 필요합니다','e'); return; }
+        slides.splice(idx, 1); renderSlideList(); markChanged(); showToast('슬라이드가 삭제되었습니다','s');
+      } catch(e) {}
+    }
+
+    /* --- 사이드 패널 이벤트 연결 ---
+       닫기, 백드롭 클릭, 슬라이드 추가, 슬라이드 이미지 교체 동작 설정 */
+    (function(){
+      document.getElementById('spClose').addEventListener('click', closeSp);
+      document.getElementById('spBackdrop').addEventListener('click', closeSp);
+      /* 슬라이드 추가: 빈 슬라이드를 목록 끝에 추가하고 이미지 선택 대화상자 열기 */
+      document.getElementById('spAddBtn').addEventListener('click', function(){
+        try {
+          var slides = spState.slides; if (!slides) return;
+          slides.push({src:'',dataUrl:null,name:'새 슬라이드'});
+          renderSlideList(); markChanged();
+          document.getElementById('spFileInput').setAttribute('data-slide-idx', slides.length-1);
+          document.getElementById('spFileInput').click();
+        } catch(e) {}
+      });
+      document.getElementById('spFileInput').addEventListener('change', function(e){
+        var file = e.target.files[0]; if (!file) return;
+        var idx = parseInt(this.getAttribute('data-slide-idx')||'0');
+        var reader = new FileReader();
+        reader.onload = function(ev){
+          try {
+            var slides = spState.slides;
+            if (slides && slides[idx]) { slides[idx].dataUrl = ev.target.result; slides[idx].name = file.name; renderSlideList(); markChanged(); showToast('슬라이드 이미지가 교체되었습니다','s'); }
+          } catch(e) {}
+        };
+        reader.readAsDataURL(file); e.target.value = '';
+      });
+    })();
+
+    /* ═══════════════════════════════════════════════════════
+       텍스트 편집
+       설명: 텍스트 요소를 클릭하면 인라인 편집 모드로 전환됩니다.
+             - 클릭 → contenteditable 활성화 → 텍스트 직접 수정 가능
+             - "확인" → 변경 텍스트를 TEXT_MODS에 저장
+             - "취소" → 원본 텍스트로 복원
+       ═══════════════════════════════════════════════════════ */
+    var textEditState = {element:null, originalText:'', uid:''}; /* 텍스트 편집 상태 */
+
+    /* --- startTextEdit: 텍스트 인라인 편집을 시작하는 함수 ---
+       텍스트 요소를 편집 가능하게 만들고, 위에 확인/취소 툴바를 표시합니다. */
+
+    function startTextEdit(el) {
+      try {
+        if (el.classList.contains('editing')) return;
+        textEditState = {element:el, originalText:el.textContent, uid:el.getAttribute('data-uid')||uid()};
+        el.setAttribute('data-uid', textEditState.uid);
+        el.contentEditable = 'true'; el.classList.add('editing'); el.focus();
+        var tb = document.getElementById('txtToolbar');
+        var r = el.getBoundingClientRect();
+        tb.style.left = r.left+'px'; tb.style.top = (r.top-36)+'px';
+        tb.classList.add('show');
+      } catch(e) {}
+    }
+
+    (function(){
+      document.getElementById('txtTbOk').addEventListener('click', function(){
+        try {
+          var el = textEditState.element; if (!el) return;
+          TEXT_MODS[textEditState.uid] = el.textContent;
+          el.contentEditable = 'false'; el.classList.remove('editing');
+          document.getElementById('txtToolbar').classList.remove('show');
+          markChanged(); showToast('텍스트가 수정되었습니다','s');
+          textEditState = {element:null,originalText:'',uid:''};
+        } catch(e) {}
+      });
+      document.getElementById('txtTbNo').addEventListener('click', function(){
+        try {
+          var el = textEditState.element; if (!el) return;
+          el.textContent = textEditState.originalText;
+          el.contentEditable = 'false'; el.classList.remove('editing');
+          document.getElementById('txtToolbar').classList.remove('show');
+          textEditState = {element:null,originalText:'',uid:''};
+        } catch(e) {}
+      });
+    })();
+
+    /* ═══════════════════════════════════════════════════════
+       소스 영역 삭제/추가/이동
+       설명: 콘텐츠 영역(이미지, 링크, 슬라이드)을 삭제, 추가, 순서 변경하는
+             함수들입니다.
+       ═══════════════════════════════════════════════════════ */
+
+    /* --- deleteSourceArea: 콘텐츠 영역을 삭제하는 함수 ---
+       최소 1개의 콘텐츠 영역은 유지해야 합니다.
+       삭제된 이미지 경로는 DELETED_PATHS에 기록되어 내보내기 시 ZIP에서 제외됩니다. */
+    function deleteSourceArea(el) {
+      try {
+        var parent = el.parentElement; if (!parent) return;
+        var areas = parent.querySelectorAll('.ez');
+        if (areas.length <= 1) { showToast('최소 1개의 콘텐츠 영역이 필요합니다','e'); return; }
+        var path = el.getAttribute('data-path');
+        if (path) DELETED_PATHS.push(path);
+        var prev = el.previousElementSibling;
+        if (prev && prev.classList.contains('insert-slide-zone')) prev.remove();
+        el.remove(); markChanged(); showToast('콘텐츠 영역이 삭제되었습니다','s');
+      } catch(e) {}
+    }
+
+    /* --- insertImage: 새 이미지를 추가하는 함수 ---
+       파일 선택 대화상자를 열어 이미지를 선택하면:
+       1. FileReader로 dataURL 변환
+       2. ADDED_IMAGES와 MODIFIED에 저장
+       3. 탭 rawContent에 <img> 태그 추가
+       4. buildEditor() 호출로 미리보기 갱신 */
+    function insertImage(tabIdx, position) {
+      try {
+        var input = document.createElement('input');
+        input.type = 'file'; input.accept = 'image/*';
+        input.addEventListener('change', function(e){
+          var file = e.target.files[0]; if (!file) return;
+          var reader = new FileReader();
+          reader.onload = function(ev){
+            var dataUrl = ev.target.result;
+            var newPath = 'images/added_'+Date.now()+'_'+file.name;
+            ADDED_IMAGES[newPath] = dataUrl; MODIFIED[newPath] = dataUrl;
+            if (tabIdx !== null && tabIdx >= 0 && TABS[tabIdx]) {
+              TABS[tabIdx].rawContent += '\n<img src="./'+newPath+'" alt="" />';
+            } else if (IS_NO_TAB) {
+              NO_TAB_CONTENT += '\n<img src="./'+newPath+'" alt="" />';
+            }
+            buildEditor(); markChanged(); showToast('이미지가 추가되었습니다','s');
+          };
+          reader.readAsDataURL(file);
+        });
+        input.click();
+      } catch(e) {}
+    }
+
+    /* --- insertSlide: 새 슬라이드를 추가하는 함수 (블록형) ---
+       에디터에서 추가한 슬라이드는 블록형(이미지 세로 쌓기)으로 렌더링됩니다.
+       원본 swiper 구조와 달리, 내보내기 시 개별 <img> 태그로 출력됩니다.
+       추가 후 슬라이드 관리 패널이 자동으로 열립니다. */
+    function insertSlide(tabIdx, position) {
+      try {
+        if (tabIdx !== null && tabIdx >= 0) {
+          if (!SLIDE_MODULES[tabIdx]) SLIDE_MODULES[tabIdx] = [];
+          SLIDE_MODULES[tabIdx].push({posIdx:SLIDE_MODULES[tabIdx].length, isOriginal:false, slides:[{src:'',dataUrl:null,name:'새 슬라이드'}]});
+          /* rawContent에 swiper-mask를 추가하지 않음 — 블록형 슬라이드는 에디터 DOM에서 직접 관리 */
+        } else {
+          SLIDES.push({src:'',dataUrl:null,name:'새 슬라이드'});
+        }
+        buildEditor(); markChanged(); showToast('슬라이드가 추가되었습니다','s');
+        if (tabIdx !== null && tabIdx >= 0) openSlidePanel(tabIdx, SLIDE_MODULES[tabIdx].length-1);
+        else openSlidePanel(null, 0);
+      } catch(e) {}
+    }
+
+    /* --- moveArea: 콘텐츠 영역의 순서를 변경하는 함수 ---
+       'up' = 위로 이동 (이전 요소와 위치 교환)
+       'down' = 아래로 이동 (다음 요소와 위치 교환)
+       DOM 요소의 위치를 직접 변경하므로 buildOutput()에서 자동 반영됩니다. */
+    function moveArea(btn, dir) {
+      try {
+        var ez = btn.closest('.ez'); if (!ez) return;
+        if (dir === 'up') {
+          var prev = ez.previousElementSibling;
+          while (prev && prev.classList.contains('insert-slide-zone')) prev = prev.previousElementSibling;
+          if (prev && prev.classList.contains('ez')) prev.parentElement.insertBefore(ez, prev);
+        } else {
+          var next = ez.nextElementSibling;
+          while (next && next.classList.contains('insert-slide-zone')) next = next.nextElementSibling;
+          if (next && next.classList.contains('ez')) next.parentElement.insertBefore(next, ez);
+        }
+        markChanged();
+      } catch(e) {}
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       탭 관리
+       설명: 탭을 추가, 삭제하고 탭 버튼 이미지를 교체하는 함수들입니다.
+             - openTabMgr: 탭 관리 패널을 여는 함수
+             - addTab: 새 탭을 추가하는 함수
+             - deleteTab: 탭을 삭제하는 함수 (최소 1개 유지)
+       ═══════════════════════════════════════════════════════ */
+
+    /* --- openTabMgr: 탭 관리 패널을 여는 함수 ---
+       탭 버튼을 더블클릭하면 호출됩니다.
+       각 탭의 ON/OFF 이미지 업로드 영역과 삭제 버튼을 표시합니다.
+       이미지 업로드 시에도 패널이 닫히지 않고 열린 상태를 유지합니다. */
+    function openTabMgr() {
+      try {
+        var panel = document.getElementById('tabMgrPanel');
+        var body = document.getElementById('tabMgrBody');
+        body.innerHTML = '';
+        for (var t = 0; t < TABS.length; t++) {
+          var tab = TABS[t];
+          var offSrc = tab.offImg.dataUrl || rImg(tab.offImg.src);
+          var onSrc = tab.onImg.dataUrl || rImg(tab.onImg.src);
+          var item = document.createElement('div');
+          item.className = 'tab-mgr-item';
+          item.innerHTML = '<div class="tab-mgr-item-hd"><span class="tab-mgr-badge">탭 '+(t+1)+' — '+escHtml(tab.name)+'</span><div class="tab-mgr-del" data-tab-idx="'+t+'">🗑</div></div><div class="tab-mgr-uploads"><div class="tab-mgr-upload" data-tab-idx="'+t+'" data-img-type="off">'+(offSrc?'<img src="'+offSrc+'" style="max-height:40px;margin:0 auto;">':'')+'<div class="tab-mgr-upload-label">OFF 이미지</div></div><div class="tab-mgr-upload" data-tab-idx="'+t+'" data-img-type="on">'+(onSrc?'<img src="'+onSrc+'" style="max-height:40px;margin:0 auto;">':'')+'<div class="tab-mgr-upload-label">ON 이미지</div></div></div>';
+          (function(idx){item.querySelector('.tab-mgr-del').addEventListener('click',function(){deleteTab(idx);openTabMgr();});})(t);
+          var uploads = item.querySelectorAll('.tab-mgr-upload');
+          for (var u = 0; u < uploads.length; u++) {
+            (function(ul){ul.addEventListener('click',function(){
+              document.getElementById('tabMgrFileInput').setAttribute('data-tab-idx',this.getAttribute('data-tab-idx'));
+              document.getElementById('tabMgrFileInput').setAttribute('data-img-type',this.getAttribute('data-img-type'));
+              document.getElementById('tabMgrFileInput').click();
+            });})(uploads[u]);
+          }
+          body.appendChild(item);
+        }
+        panel.style.left='50%'; panel.style.top='50%'; panel.style.transform='translate(-50%,-50%)';
+        panel.classList.add('show');
+      } catch(ex) { console.error(ex); }
+    }
+
+    /* --- 탭 관리 패널 이벤트 연결 ---
+       닫기 버튼, 탭 이미지 업로드 동작을 설정합니다.
+       이미지 업로드 후: 탭 버튼 이미지 직접 갱신 + 패널 내용 갱신 (패널은 열린 상태 유지) */
+    (function(){
+      document.getElementById('tabMgrClose').addEventListener('click',function(){document.getElementById('tabMgrPanel').classList.remove('show');});
+      document.getElementById('tabMgrFileInput').addEventListener('change',function(e){
+        var file = e.target.files[0]; if (!file) return;
+        var tIdx = parseInt(this.getAttribute('data-tab-idx'));
+        var imgType = this.getAttribute('data-img-type');
+        var reader = new FileReader();
+        reader.onload = function(ev){
+          try {
+            if (TABS[tIdx]) {
+              if (imgType==='on') { TABS[tIdx].onImg.dataUrl=ev.target.result; TABS[tIdx].onImg.name=file.name; }
+              else { TABS[tIdx].offImg.dataUrl=ev.target.result; TABS[tIdx].offImg.name=file.name; }
+              markChanged();
+              /* 탭 버튼 이미지 직접 갱신 (buildEditor 호출하지 않음) */
+              var tbw = document.getElementById('tabBtnWrap');
+              if (tbw) {
+                var btns = tbw.querySelectorAll('.tab-btn');
+                if (btns[tIdx]) {
+                  var img = btns[tIdx].querySelector('img');
+                  if (img) {
+                    if (tIdx === activeTabIdx) {
+                      img.src = TABS[tIdx].onImg.dataUrl || rImg(TABS[tIdx].onImg.src);
+                    } else {
+                      img.src = TABS[tIdx].offImg.dataUrl || rImg(TABS[tIdx].offImg.src);
+                    }
+                  }
+                }
+              }
+              /* 탭 관리 패널 내용 갱신 (패널은 열린 상태 유지) */
+              openTabMgr();
+              showToast('탭 이미지가 교체되었습니다','s');
+            }
+          } catch(ex) { console.error(ex); }
+        };
+        reader.readAsDataURL(file); e.target.value='';
+      });
+    })();
+
+    /* --- addTab: 새 탭을 추가하는 함수 ---
+       TABS 배열 끝에 빈 탭을 추가하고, buildEditor()로 미리보기를 갱신합니다.
+       새 탭에는 플레이스홀더 이미지 블록이 기본으로 표시됩니다.
+       추가 후 자동으로 새 탭으로 전환됩니다. */
+    function addTab() {
+      try {
+        var newIdx = TABS.length;
+        TABS.push({name:'탭 '+(newIdx+1), offImg:{src:'',dataUrl:null,name:''}, onImg:{src:'',dataUrl:null,name:''}, rawContent:''});
+        SLIDE_MODULES[newIdx] = [];
+        buildEditor(); markChanged(); showToast('탭이 추가되었습니다','s');
+        /* 새 탭으로 전환 */
+        switchTab(newIdx);
+      } catch(e) {}
+    }
+
+    /* --- deleteTab: 탭을 삭제하는 함수 ---
+       탭이 1개만 남으면 삭제를 차단합니다.
+       삭제 시 해당 탭의 콘텐츠 영역과 슬라이드 모듈도 함께 제거됩니다.
+       SLIDE_MODULES의 인덱스를 재정렬합니다. */
+    function deleteTab(idx) {
+      try {
+        if (TABS.length <= 1) { showToast('최소 1개의 탭이 필요합니다','e'); return; }
+        TABS.splice(idx, 1);
+        var newMod = {}, keys = Object.keys(SLIDE_MODULES).map(Number).sort(), ni = 0;
+        for (var k = 0; k < keys.length; k++) { if (keys[k]===idx) continue; newMod[ni]=SLIDE_MODULES[keys[k]]; ni++; }
+        SLIDE_MODULES = newMod;
+        if (activeTabIdx >= TABS.length) activeTabIdx = TABS.length-1;
+        buildEditor(); markChanged(); showToast('탭이 삭제되었습니다','s');
+      } catch(e) {}
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       콘텐츠 정보 드로어
+       설명: 콘텐츠명(contentName)과 태깅코드(contentCode)를 확인하고
+             수정할 수 있는 하단 패널입니다.
+             값을 수정하면 markChanged()가 호출되어 변경 상태가 추적됩니다.
+             수정된 값은 ZIP 내보내기 시 index.html의 <head> 스크립트에 반영됩니다.
+       ═══════════════════════════════════════════════════════ */
+    /* --- openInfo: 콘텐츠 정보 드로어를 여는 함수 --- */
+    function openInfo() {
+      try {
+        document.getElementById('infoName').value = contentName;
+        document.getElementById('infoCode').value = contentCode;
+        document.getElementById('infoDrawer').classList.add('show');
+      } catch(e) {}
+    }
+    /* --- closeInfo: 콘텐츠 정보 드로어를 닫는 함수 --- */
+    function closeInfo() { document.getElementById('infoDrawer').classList.remove('show'); }
+
+    (function(){
+      document.getElementById('btnInfo').addEventListener('click', openInfo);
+      document.getElementById('infoClose').addEventListener('click', closeInfo);
+      document.getElementById('infoName').addEventListener('input', function(){ contentName=this.value; markChanged(); });
+      document.getElementById('infoCode').addEventListener('input', function(){ contentCode=this.value; markChanged(); });
+    })();
+
+    /* ═══════════════════════════════════════════════════════
+       에디터 초기화
+       설명: "초기화" 버튼을 클릭하면 페이지를 새로고침하여
+             모든 편집 내용을 취소하고 원본 상태로 되돌립니다.
+             (location.reload()로 모든 전역 변수가 초기화됩니다)
+       ═══════════════════════════════════════════════════════ */
+    document.getElementById('btnReset').addEventListener('click', function(){ location.reload(); });
+
+    /* ═══════════════════════════════════════════════════════
+       buildOutput — 편집된 내용을 HTML로 재구성하는 함수 (DOM 기반)
+       설명: 에디터 DOM(#phone)의 현재 상태를 직접 읽어서 내보내기용
+             index.html 문자열을 생성합니다.
+
+             핵심 동작:
+             1. 원본 HTML_SRC를 DOM으로 파싱하여 템플릿으로 사용
+             2. <head> 스크립트의 contentName, contentCode, linkObj 갱신
+             3. eventBox 내부를 비우고, 에디터 DOM에서 현재 상태를 읽어 재구성
+             4. 각 .ez 요소를 원본 HTML 구조로 변환:
+                - ez-img → <img> 태그
+                - ez-link → <a class="link-btn"> 태그
+                - ez-slide-item (원본) → swiper-mask 구조
+                - ez-slide-item (추가, 블록형) → 개별 <img> 태그
+                - ext-img-section → 외부 URL <img> 태그
+
+             구현 변경: rawContent 문자열 대신 라이브 DOM을 소스로 사용하여
+             추가/삭제/순서변경이 자동으로 반영됩니다.
+       ═══════════════════════════════════════════════════════ */
+    function buildOutput() {
+      try {
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(HTML_SRC, 'text/html');
+
+        /* head 스크립트 갱신 (contentName, contentCode, linkObj) */
+        var scripts = doc.querySelectorAll('head script');
+        for (var i = 0; i < scripts.length; i++) {
+          var text = scripts[i].textContent;
+          if (text.indexOf('contentName') !== -1 || text.indexOf('linkObj') !== -1) {
+            var ns = '\n      // <!-- TODO 링크 데이터 설정 [S] -->\n';
+            ns += '      const contentName = "'+contentName.replace(/"/g,'\\"')+'";\n';
+            ns += '      const contentCode = "'+contentCode.replace(/"/g,'\\"')+'";\n\n';
+            ns += '      const linkObj = [\n';
+            for (var l = 0; l < LINK_OBJ.length; l++) {
+              var lo = LINK_OBJ[l];
+              ns += '        {\n          type: "'+(lo.type||'').replace(/"/g,'\\"')+'",\n          url: "'+(lo.url||'').replace(/"/g,'\\"')+'",\n          value: "'+(lo.value||'').replace(/"/g,'\\"')+'",\n        }'+(l<LINK_OBJ.length-1?',':'')+'\n';
+            }
+            ns += '      ];\n      // <!-- TODO 링크 데이터 설정 [E] -->\n    ';
+            scripts[i].textContent = ns;
+            break;
+          }
+        }
+
+        /* eventBox 재구성 — 에디터 DOM에서 현재 상태를 읽어서 생성 */
+        var eventBox = doc.querySelector('.eventBox');
+        if (!eventBox) return '<!doctype html>\n'+doc.documentElement.outerHTML;
+        eventBox.innerHTML = '';
+
+        var phone = document.getElementById('phone');
+
+        function addDot(p) {
+          if (!p) return '';
+          if (p.startsWith('./')||p.startsWith('http://')||p.startsWith('https://')) return p;
+          return './'+p;
+        }
+
+        /* 에디터 DOM의 .ez 요소들을 순회하여 원본 HTML 구조로 변환 */
+        function exportEzElements(container, targetEl) {
+          var children = container.children;
+          var swiperCounter = 1;
+
+          for (var c = 0; c < children.length; c++) {
+            var child = children[c];
+
+            /* 에디터 UI 요소 건너뛰기 */
+            if (child.classList.contains('insert-slide-zone')) continue;
+            if (child.classList.contains('tab-btn-wrap')) continue;
+            if (child.classList.contains('tab-add-bar')) continue;
+            if (child.classList.contains('tab-content-area')) continue;
+
+            if (child.classList.contains('ez-img')) {
+              /* 이미지 블록 */
+              var path = child.getAttribute('data-path')||'';
+              var imgEl = child.querySelector('img');
+              var alt = imgEl ? (imgEl.getAttribute('alt')||'') : '';
+              var img = doc.createElement('img');
+              img.setAttribute('src', addDot(path));
+              img.setAttribute('alt', alt);
+              targetEl.appendChild(img);
+              targetEl.appendChild(doc.createTextNode('\n'));
+
+            } else if (child.classList.contains('ez-link')) {
+              /* 링크 블록 */
+              var path = child.getAttribute('data-path')||'';
+              var linkIdx = parseInt(child.getAttribute('data-link-idx')||'0');
+              var imgEl = child.querySelector('img');
+              var alt = imgEl ? (imgEl.getAttribute('alt')||'') : '';
+              var a = doc.createElement('a');
+              a.setAttribute('href', '#');
+              a.setAttribute('id', 'link'+linkIdx);
+              a.setAttribute('data-order', String(linkIdx));
+              a.className = 'link-btn kioskDel';
+              var linkImg = doc.createElement('img');
+              linkImg.setAttribute('src', addDot(path));
+              linkImg.setAttribute('alt', alt);
+              a.appendChild(linkImg);
+              targetEl.appendChild(a);
+              targetEl.appendChild(doc.createTextNode('\n'));
+
+            } else if (child.classList.contains('ez-slide-item') || child.classList.contains('inline-slide-module')) {
+              /* 슬라이드 블록 */
+              var tabIdxAttr = child.getAttribute('data-tab-idx');
+              var moduleIdx = parseInt(child.getAttribute('data-module-idx')||'0');
+              var isBlockSlide = child.getAttribute('data-block-slide') === 'true';
+              var slides;
+              if (tabIdxAttr !== null && tabIdxAttr !== 'null' && tabIdxAttr !== '') {
+                var ti = parseInt(tabIdxAttr);
+                slides = (SLIDE_MODULES[ti] && SLIDE_MODULES[ti][moduleIdx]) ? SLIDE_MODULES[ti][moduleIdx].slides : [];
+              } else {
+                slides = SLIDES;
+              }
+
+              if (isBlockSlide) {
+                /* 에디터에서 추가한 슬라이드 — 블록형 <img> 태그로 내보내기 */
+                for (var s = 0; s < slides.length; s++) {
+                  var si = doc.createElement('img');
+                  var slideSrc = slides[s].src;
+                  if (!slideSrc && slides[s].dataUrl) {
+                    if (tabIdxAttr !== null && tabIdxAttr !== 'null' && tabIdxAttr !== '') {
+                      slideSrc = 'images/tab'+(parseInt(tabIdxAttr)+1)+'/added_slide_'+(moduleIdx+1)+'_'+(s+1)+'.png';
+                    } else {
+                      slideSrc = 'images/added_slide_'+(s+1)+'.png';
+                    }
+                    slides[s].src = slideSrc;
+                  }
+                  si.setAttribute('src', addDot(slideSrc));
+                  si.setAttribute('alt', '');
+                  targetEl.appendChild(si);
+                  targetEl.appendChild(doc.createTextNode('\n'));
+                }
+              } else {
+                /* 원본 슬라이드 — swiper-mask 구조로 내보내기 */
+                var mask = doc.createElement('div');
+                mask.className = 'swiper-mask swiper-basic swiper'+swiperCounter;
+                var swiper = doc.createElement('div');
+                swiper.className = 'swiper';
+                var wrapper = doc.createElement('div');
+                wrapper.className = 'swiper-wrapper';
+
+                for (var s = 0; s < slides.length; s++) {
+                  var sd = doc.createElement('div');
+                  sd.className = 'swiper-slide';
+                  var si = doc.createElement('img');
+                  var slideSrc = slides[s].src;
+                  if (!slideSrc && slides[s].dataUrl) {
+                    if (tabIdxAttr !== null && tabIdxAttr !== 'null' && tabIdxAttr !== '') {
+                      slideSrc = 'images/tab'+(parseInt(tabIdxAttr)+1)+'/slide/'+(moduleIdx+1)+'/'+(s+1)+'.png';
+                    } else {
+                      slideSrc = 'images/slide/'+swiperCounter+'/'+(s+1)+'.png';
+                    }
+                    slides[s].src = slideSrc;
+                  }
+                  si.setAttribute('src', addDot(slideSrc));
+                  si.setAttribute('alt', '');
+                  sd.appendChild(si);
+                  wrapper.appendChild(sd);
+                  wrapper.appendChild(doc.createTextNode('\n'));
+                }
+
+                swiper.appendChild(wrapper);
+                mask.appendChild(swiper);
+                targetEl.appendChild(mask);
+                targetEl.appendChild(doc.createTextNode('\n'));
+                swiperCounter++;
+              }
+
+            } else if (child.classList.contains('ext-img-section')) {
+              /* 외부 이미지 */
+              var path = child.getAttribute('data-path')||'';
+              var imgEl = child.querySelector('img');
+              var alt = imgEl ? (imgEl.getAttribute('alt')||'') : '';
+              var img = doc.createElement('img');
+              img.setAttribute('src', path); /* 외부 URL은 그대로 */
+              img.setAttribute('alt', alt);
+              targetEl.appendChild(img);
+              targetEl.appendChild(doc.createTextNode('\n'));
+            }
+          }
+        }
+
+        if (!IS_NO_TAB && TABS.length > 0) {
+          /* 상단 이미지 (탭 버튼 이전) — 에디터 DOM에서 읽기 */
+          var phoneChildren = phone.children;
+          for (var i = 0; i < phoneChildren.length; i++) {
+            var ch = phoneChildren[i];
+            if (ch.classList.contains('tab-btn-wrap')) break;
+            if (ch.classList.contains('tab-add-bar')) break;
+            if (ch.classList.contains('tab-content-area')) break;
+            if (ch.classList.contains('ez-img')) {
+              var path = ch.getAttribute('data-path')||'';
+              var imgEl = ch.querySelector('img');
+              var alt = imgEl ? (imgEl.getAttribute('alt')||'') : '';
+              var img = doc.createElement('img');
+              img.setAttribute('src', addDot(path));
+              img.setAttribute('alt', alt);
+              eventBox.appendChild(img);
+              eventBox.appendChild(doc.createTextNode('\n'));
+            }
+          }
+
+          /* 탭 버튼 영역 */
+          var tba = doc.createElement('div');
+          tba.className = 'tab-btn-area '+TAB_TYPE;
+          for (var t = 0; t < TABS.length; t++) {
+            var tab = TABS[t];
+            var bd = doc.createElement('div');
+            bd.className = 'tab-btn'+(t===0?' on':'');
+            if (tab.name) bd.setAttribute('data-tab-name', tab.name);
+            var offI = doc.createElement('img');
+            offI.setAttribute('src', addDot(tab.offImg.src||'images/tab/tab'+(t+1)+'_off.jpg'));
+            offI.setAttribute('alt','');
+            bd.appendChild(offI);
+            var onI = doc.createElement('img');
+            onI.setAttribute('src', addDot(tab.onImg.src||'images/tab/tab'+(t+1)+'_on.jpg'));
+            onI.setAttribute('alt','');
+            bd.appendChild(onI);
+            tba.appendChild(bd);
+            tba.appendChild(doc.createTextNode('\n'));
+          }
+          eventBox.appendChild(tba);
+          eventBox.appendChild(doc.createTextNode('\n'));
+
+          /* 각 탭 콘텐츠 영역 — 에디터 DOM에서 읽기 */
+          for (var t = 0; t < TABS.length; t++) {
+            var ta = doc.createElement('div');
+            ta.className = 'tab-area img-box';
+            var tabArea = document.getElementById('tabArea_'+t);
+            if (tabArea) {
+              exportEzElements(tabArea, ta);
+            }
+            eventBox.appendChild(ta);
+            eventBox.appendChild(doc.createTextNode('\n'));
+          }
+        } else {
+          /* 탭 없는 구조 — 에디터 DOM에서 읽기 */
+          var phoneChildren = phone.children;
+          for (var i = 0; i < phoneChildren.length; i++) {
+            var ch = phoneChildren[i];
+            if (ch.id === 'noTabContent') break;
+            if (ch.classList.contains('insert-slide-zone')) continue;
+            if (ch.classList.contains('ez-img')) {
+              var path = ch.getAttribute('data-path')||'';
+              var imgEl = ch.querySelector('img');
+              var alt = imgEl ? (imgEl.getAttribute('alt')||'') : '';
+              var img = doc.createElement('img');
+              img.setAttribute('src', addDot(path));
+              img.setAttribute('alt', alt);
+              eventBox.appendChild(img);
+              eventBox.appendChild(doc.createTextNode('\n'));
+            }
+          }
+
+          var ib = doc.createElement('div');
+          ib.className = 'img-box';
+          var noTabEl = document.getElementById('noTabContent');
+          if (noTabEl) {
+            exportEzElements(noTabEl, ib);
+          }
+          eventBox.appendChild(ib);
+          eventBox.appendChild(doc.createTextNode('\n'));
+        }
+
+        /* body 하단 스크립트는 이미 doc에 포함되어 있으므로 별도 처리 불필요 */
+
+        return '<!doctype html>\n'+doc.documentElement.outerHTML;
+      } catch(err) {
+        console.error('HTML 재구성 오류:', err);
+        showToast('HTML 재구성 중 오류가 발생했습니다','e');
+        return HTML_SRC;
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       exportZip — 편집된 내용을 ZIP 파일로 저장하는 함수
+       설명: 편집된 모든 내용을 ZIP 파일로 재조립하여 다운로드합니다.
+
+             처리 순서:
+             1. buildOutput()으로 편집된 index.html 문자열 생성
+             2. 원본 ZIP_FILES의 파일들을 ZIP에 추가 (css/, js/ 등 변경 없이)
+                - 삭제된 파일(DELETED_PATHS)은 제외
+                - 교체된 이미지(MODIFIED)는 새 데이터로 덮어쓰기
+             3. 슬라이드 이미지 추가 (새로 추가되거나 교체된 것)
+             4. 탭 버튼 이미지 추가 (ON/OFF 이미지)
+             5. 새로 추가된 이미지(ADDED_IMAGES) 추가
+             6. ZIP Blob 생성 → 브라우저 다운로드
+       ═══════════════════════════════════════════════════════ */
+    async function exportZip() {
+      try {
+        showLoading('ZIP 파일을 생성하고 있습니다...','');
+        document.getElementById('btnExp').disabled = true;
+        var outputHtml = buildOutput();
+        var zip = new JSZip();
+
+        /* 원본 파일 추가 (index.html 제외, 삭제된 파일 제외) */
+        var keys = Object.keys(ZIP_FILES);
+        for (var i = 0; i < keys.length; i++) {
+          var p = keys[i];
+          if (p === 'index.html') continue;
+          if (DELETED_PATHS.indexOf(p) !== -1) continue;
+          if (MODIFIED[p]) {
+            zip.file(p, dataUrlToUint8Array(MODIFIED[p]));
+          } else {
+            zip.file(p, ZIP_FILES[p]);
+          }
+        }
+
+        /* 편집된 index.html */
+        zip.file('index.html', outputHtml);
+
+        /* 슬라이드 이미지 (새로 추가되거나 교체된 것) */
+        if (!IS_NO_TAB) {
+          for (var t = 0; t < TABS.length; t++) {
+            var mods = SLIDE_MODULES[t]||[];
+            for (var m = 0; m < mods.length; m++) {
+              for (var s = 0; s < mods[m].slides.length; s++) {
+                var sl = mods[m].slides[s];
+                if (sl.dataUrl && sl.src) {
+                  zip.file(sl.src, dataUrlToUint8Array(sl.dataUrl));
+                }
+              }
+            }
+            /* 탭 버튼 이미지 */
+            var tab = TABS[t];
+            if (tab.offImg.dataUrl) {
+              var offPath = tab.offImg.src||'images/tab/tab'+(t+1)+'_off.jpg';
+              zip.file(offPath, dataUrlToUint8Array(tab.offImg.dataUrl));
+            }
+            if (tab.onImg.dataUrl) {
+              var onPath = tab.onImg.src||'images/tab/tab'+(t+1)+'_on.jpg';
+              zip.file(onPath, dataUrlToUint8Array(tab.onImg.dataUrl));
+            }
+          }
+        } else {
+          for (var s = 0; s < SLIDES.length; s++) {
+            var sl = SLIDES[s];
+            if (sl.dataUrl && sl.src) {
+              zip.file(sl.src, dataUrlToUint8Array(sl.dataUrl));
+            }
+          }
+        }
+
+        /* 추가된 이미지 파일 */
+        var addedKeys = Object.keys(ADDED_IMAGES);
+        for (var i = 0; i < addedKeys.length; i++) {
+          zip.file(addedKeys[i], dataUrlToUint8Array(ADDED_IMAGES[addedKeys[i]]));
+        }
+
+        var blob = await zip.generateAsync({type:'blob'});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = (document.getElementById('topbarHint').textContent||'content');
+        if (!a.download.endsWith('.zip')) a.download += '.zip';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        hideLoading(); document.getElementById('btnExp').disabled = false;
+        showToast('ZIP 파일이 저장되었습니다','s');
+      } catch(err) {
+        console.error('ZIP 생성 오류:', err);
+        showToast('ZIP 생성 실패','e');
+        hideLoading(); document.getElementById('btnExp').disabled = false;
+      }
+    }
+
+    document.getElementById('btnExp').addEventListener('click', exportZip);
+
+    /* ═══════════════════════════════════════════════════════
+       오류 처리 및 패널 외부 클릭
+       설명: 전역 오류 핸들러와 패널 외부 클릭 시 닫기 동작을 설정합니다.
+             - 플로팅 패널: 외부 클릭 시 자동 닫힘
+             - 탭 관리 패널: X 버튼으로만 닫힘 (자동 닫힘 방지)
+       ═══════════════════════════════════════════════════════ */
+    window.addEventListener('error', function(e) { console.error('전역 오류:', e.message); });
+
+    document.addEventListener('click', function(e) {
+      try {
+        var fp = document.getElementById('floatingPanel');
+        var tm = document.getElementById('tabMgrPanel');
+        if (fp.classList.contains('show') && !fp.contains(e.target) && !e.target.closest('.ez')) closeFp();
+        /* 탭 관리 패널은 X 버튼으로만 닫기 — 자동 닫힘 방지 */
+      } catch(ex) {}
+    });
+
+    /* --- CDN 로드 확인: JSZip 라이브러리가 정상적으로 로드되었는지 확인 ---
+       인터넷 연결이 없으면 JSZip을 사용할 수 없으므로 안내 메시지를 표시합니다. */
+    if (typeof JSZip === 'undefined') {
+      document.querySelector('.dropzone-label').textContent = 'JSZip 라이브러리를 로드할 수 없습니다';
+      document.querySelector('.dropzone-desc').textContent = '인터넷 연결을 확인해주세요';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+/* toggle-box [S] */
+.toggle-box .toggle-box__btns img:first-child,
+.toggle-box.on .toggle-box__btns img:last-child,
+.toggle-box .toggle-box__con {
+  display: none;
+}
+.toggle-box.on .toggle-box__btns img:first-child,
+.toggle-box .toggle-box__btns img:last-child,
+.toggle-box.on .toggle-box__con {
+  display: block;
+}
+/* toggle-box [E] */
