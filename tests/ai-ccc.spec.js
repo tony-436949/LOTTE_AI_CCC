@@ -66,7 +66,7 @@ test.describe('AI_CCC 웹 콘텐츠 에디터 테스트', () => {
   });
 
   test('13. 드롭존 클릭 시 파일 선택 트리거 확인', async ({ page }) => {
-    const fileInput = page.locator('input[type="file"]');
+    const fileInput = page.locator('#zipInput');
     await expect(fileInput).toBeAttached();
   });
 
@@ -81,3 +81,4 @@ test.describe('AI_CCC 웹 콘텐츠 에디터 테스트', () => {
   });
 
 });
+
