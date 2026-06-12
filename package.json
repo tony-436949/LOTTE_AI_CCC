@@ -1,0 +1,27 @@
+{
+  "name": "lotte_ai_ccc",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tony-436949/LOTTE_AI_CCC.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/tony-436949/LOTTE_AI_CCC/issues"
+  },
+  "homepage": "https://github.com/tony-436949/LOTTE_AI_CCC#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
+  }
+}
